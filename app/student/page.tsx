@@ -6,6 +6,7 @@ import { resolveEnrollmentPaymentAccess } from "../../lib/enrollment-payment-sta
 import { loadLessonQuestionsForStudent } from "../../lib/lesson-questions-student";
 import ProgressBar from "../../components/ProgressBar";
 import SelfTempLockSection from "../../components/SelfTempLockSection";
+import CancelEnrollmentButton from "../../components/CancelEnrollmentButton";
 import { daysUntil } from "../../lib/course-lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -174,6 +175,14 @@ export default async function StudentDashboardPage() {
                     </Link>
                   )}
                 </div>
+              </div>
+              <div className="mt-4 border-t border-white/10 pt-4 sm:flex sm:justify-end">
+                <CancelEnrollmentButton
+                  enrollmentId={e.id}
+                  courseName={e.courseName}
+                  variant="onDark"
+                  className="w-full sm:max-w-xl"
+                />
               </div>
             </div>
           ))}
