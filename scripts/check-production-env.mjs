@@ -70,13 +70,19 @@ need("NEXT_PUBLIC_SUPABASE_URL", "your-project");
 need("NEXT_PUBLIC_SUPABASE_ANON_KEY", "your-anon");
 need("SUPABASE_SERVICE_ROLE_KEY", "your-service-role");
 
-// Site URL: CSRF + metadata; nên set rõ trong production
+// Site URL: CSRF + metadata — production build từ chối POST nếu thiếu (lib/csrf.ts)
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
 if (!siteUrl || !String(siteUrl).trim()) {
-  warnings.push(
-    "Nên đặt NEXT_PUBLIC_SITE_URL (hoặc NEXT_PUBLIC_APP_URL) đúng domain production. " +
-      "Nếu thiếu, checkout có thể dùng origin request; khi đã set URL thì CSRF sẽ so khớp origin — nếu sai domain sẽ 403 (Invalid origin)."
-  );
+  if (process.env.VERCEL) {
+    errors.push(
+      "Deploy Vercel: bắt buộc NEXT_PUBLIC_SITE_URL hoặc NEXT_PUBLIC_APP_URL (https://domain-của-bạn) — CSRF và một số API sẽ 403 nếu thiếu."
+    );
+  } else {
+    warnings.push(
+      "Nên đặt NEXT_PUBLIC_SITE_URL (hoặc NEXT_PUBLIC_APP_URL) đúng domain production. " +
+        "Khi chạy `next start` (NODE_ENV=production), thiếu biến này sẽ khiến validateOrigin từ chối mọi POST state-changing."
+    );
+  }
 } else {
   try {
     const u = new URL(siteUrl);

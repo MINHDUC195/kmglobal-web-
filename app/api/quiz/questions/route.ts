@@ -6,6 +6,9 @@ import {
   buildCorrectAnswerDisplay,
   buildStudentAnswerDisplay,
 } from "../../../../lib/quiz-answer-display";
+import { isCourseExpiredUncompleted } from "../../../../lib/course-expired-uncompleted";
+import { resolveEnrollmentPaymentAccess } from "../../../../lib/enrollment-payment-status";
+import { getLessonWithAccess } from "../../../../lib/lesson-access";
 
 const EPS = 1e-6;
 
@@ -93,7 +96,12 @@ export async function GET(request: NextRequest) {
     if (finalExamId && enrollmentId) {
       const { data: enrollCheck } = await admin
         .from("enrollments")
-        .select("id, regular_course_id")
+        .select(`
+          id,
+          payment_id,
+          regular_course_id,
+          regular_course:regular_courses(base_course_id, price_cents, discount_percent)
+        `)
         .eq("id", enrollmentId)
         .eq("user_id", user.id)
         .eq("status", "active")
@@ -101,13 +109,28 @@ export async function GET(request: NextRequest) {
       if (!enrollCheck) {
         return NextResponse.json({ error: "Enrollment không hợp lệ" }, { status: 403 });
       }
-      const { data: rc } = await admin
-        .from("regular_courses")
-        .select("base_course_id")
-        .eq("id", enrollCheck.regular_course_id)
-        .single();
+      const rc = enrollCheck.regular_course as { base_course_id?: string } | null;
       if (rc?.base_course_id !== baseCourseId) {
         return NextResponse.json({ error: "Enrollment không thuộc khóa học này" }, { status: 403 });
+      }
+      const { needsPayment } = await resolveEnrollmentPaymentAccess(admin, {
+        payment_id: enrollCheck.payment_id,
+        regular_course:
+          (enrollCheck.regular_course as {
+            price_cents?: number | null;
+            discount_percent?: number | null;
+          } | null) ?? null,
+      });
+      if (needsPayment) {
+        return NextResponse.json(
+          { error: "Cần thanh toán để làm bài thi cuối khóa." },
+          { status: 403 }
+        );
+      }
+    } else if (lessonId && enrollmentId) {
+      const access = await getLessonWithAccess(admin, user.id, lessonId, enrollmentId);
+      if (!access.ok) {
+        return NextResponse.json({ error: access.message }, { status: access.status });
       }
     } else {
       const { data: rcList } = await admin
@@ -131,6 +154,11 @@ export async function GET(request: NextRequest) {
   } else if (!isOwnerOrAdmin && !baseCourseId) {
     return NextResponse.json({ error: "Không tìm thấy bài học/chương" }, { status: 404 });
   }
+
+  const hideAnswersForExpired =
+    !isOwnerOrAdmin &&
+    enrollmentId &&
+    (await isCourseExpiredUncompleted(admin, enrollmentId));
 
   let questions: { id: string; content: string; type: string; points: number; max_attempts: number; sort_order?: number }[];
 
@@ -161,12 +189,18 @@ export async function GET(request: NextRequest) {
     }));
     questions.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   } else {
-    const query = supabase
-      .from("questions")
-      .select("id, content, type, points, max_attempts")
-      .order("created_at");
-    const q = lessonId ? query.eq("lesson_id", lessonId) : query.eq("chapter_id", chapterId!);
-    const { data, error: qErr } = await q;
+    // Bắt buộc dùng admin: RLS đã thu hẹp — học viên không SELECT trực tiếp bảng questions.
+    const { data, error: qErr } = lessonId
+      ? await admin
+          .from("questions")
+          .select("id, content, type, points, max_attempts")
+          .eq("lesson_id", lessonId)
+          .order("created_at")
+      : await admin
+          .from("questions")
+          .select("id, content, type, points, max_attempts")
+          .eq("chapter_id", chapterId!)
+          .order("created_at");
     if (qErr) {
       return NextResponse.json({ error: qErr.message }, { status: 500 });
     }
@@ -299,12 +333,13 @@ export async function GET(request: NextRequest) {
       attempt_count: stats.count,
       points_earned: stats.pointsEarned,
       has_correct: stats.hasCorrect,
-      ...(mayShowFeedback && last
+      ...(mayShowFeedback && last && !hideAnswersForExpired
         ? {
             student_answer_display: studentAnswerDisplay,
             correct_answer_display: correctAnswerDisplay,
           }
         : {}),
+      ...(hideAnswersForExpired ? { course_expired_locked: true } : {}),
     };
   });
 

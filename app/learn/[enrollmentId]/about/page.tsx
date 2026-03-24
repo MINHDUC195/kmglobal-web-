@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
+import CancelEnrollmentButton from "../../../../components/CancelEnrollmentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,13 @@ export default async function LearnAboutPage({ params }: AboutPageProps) {
     .single();
 
   if (eErr || !enrollment) notFound();
+
+  const { data: certificateRow } = await admin
+    .from("certificates")
+    .select("id")
+    .eq("enrollment_id", enrollmentId)
+    .maybeSingle();
+  const hasCertificate = Boolean(certificateRow);
 
   const baseCourse = (enrollment.regular_course as {
     base_course?: {
@@ -106,6 +114,21 @@ export default async function LearnAboutPage({ params }: AboutPageProps) {
       >
         Về Dashboard
       </Link>
+
+      {!hasCertificate && (
+        <div className="mt-12 border-t border-gray-200 pt-8">
+          <h3 className="font-semibold text-[#002b2d]">Hủy đăng ký</h3>
+          <p className="mt-2 text-sm text-gray-600">
+            Nếu bạn không thể tiếp tục học, bạn có thể hủy đăng ký tại đây.
+          </p>
+          <div className="mt-4">
+            <CancelEnrollmentButton
+              enrollmentId={enrollmentId}
+              courseName={courseName}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

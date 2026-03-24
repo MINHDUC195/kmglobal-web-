@@ -13,6 +13,8 @@ import { validateOrigin } from "../../../../../lib/csrf";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../../lib/rate-limit";
 import { scoreMultipleChoiceRewardPenalty } from "../../../../../lib/quiz-multiple-choice-score";
 import { computeOverallCoursePercent } from "../../../../../lib/course-overall-score";
+import { isCourseExpiredUncompleted } from "../../../../../lib/course-expired-uncompleted";
+import { resolveEnrollmentPaymentAccess } from "../../../../../lib/enrollment-payment-status";
 
 const EPS = 1e-6;
 
@@ -72,8 +74,9 @@ export async function POST(request: NextRequest) {
       .select(`
         id,
         user_id,
+        payment_id,
         regular_course_id,
-        regular_course:regular_courses(id, name, base_course_id)
+        regular_course:regular_courses(id, name, base_course_id, price_cents, discount_percent)
       `)
       .eq("id", enrollmentId)
       .eq("user_id", user.id)
@@ -82,6 +85,28 @@ export async function POST(request: NextRequest) {
 
     if (eErr || !enrollment) {
       return NextResponse.json({ error: "Enrollment không hợp lệ" }, { status: 404 });
+    }
+
+    const { needsPayment } = await resolveEnrollmentPaymentAccess(admin, {
+      payment_id: enrollment.payment_id,
+      regular_course:
+        (enrollment.regular_course as {
+          price_cents?: number | null;
+          discount_percent?: number | null;
+        } | null) ?? null,
+    });
+    if (needsPayment) {
+      return NextResponse.json(
+        { error: "Cần thanh toán để làm bài thi cuối khóa." },
+        { status: 403 }
+      );
+    }
+
+    if (await isCourseExpiredUncompleted(admin, enrollmentId)) {
+      return NextResponse.json(
+        { error: "Thi cuối kỳ đã bị khóa. Khóa học đã kết thúc và bạn chưa hoàn thành đúng hạn." },
+        { status: 403 }
+      );
     }
 
     const baseCourseId = (enrollment.regular_course as { base_course_id?: string } | null)?.base_course_id;
@@ -119,6 +144,21 @@ export async function POST(request: NextRequest) {
           issuedAt: existingCert.issued_at,
         },
       });
+    }
+
+    const { count: attemptCount } = await admin
+      .from("final_exam_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("enrollment_id", enrollmentId);
+
+    if ((attemptCount ?? 0) >= 2) {
+      return NextResponse.json(
+        {
+          error:
+            "Bạn đã hết 2 lần thi. Nếu muốn đăng ký lại để lấy chứng chỉ, vui lòng hủy đăng ký khóa cũ trước.",
+        },
+        { status: 403 }
+      );
     }
 
     const { data: finalExam } = await admin

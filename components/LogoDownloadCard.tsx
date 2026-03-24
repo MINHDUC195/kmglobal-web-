@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 type LogoDownloadCardProps = {
   title: string;
   desc: string;
@@ -24,13 +26,14 @@ export default function LogoDownloadCard({
       <h2 className="mb-2 text-sm font-semibold text-[#D4AF37]">{title}</h2>
       <p className="mb-4 text-xs text-gray-500">{desc}</p>
       <div className="mb-4 flex min-h-[100px] items-center justify-center rounded-lg bg-[#0a1628] p-4">
-        <img
+        <Image
           id={imgId}
           src={pngSrc ?? src}
           alt={title}
           className="max-h-full w-auto"
           width={280}
           height={70}
+          unoptimized
         />
       </div>
       <div className="flex flex-wrap gap-2">

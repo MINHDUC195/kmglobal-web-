@@ -33,7 +33,7 @@ export default function LearnCourseAccordion({
         const lessons = (lessonsByChapter[ch.id] ?? []).sort(
           (a, b) => a.sort_order - b.sort_order
         );
-        const locked = !isPaid && chIndex >= 2;
+        const locked = !isPaid && chIndex >= 1;
         const isOpen = openChapterId === ch.id;
 
         return (
@@ -59,7 +59,7 @@ export default function LearnCourseAccordion({
                 <h3 className="font-semibold text-[#002b2d]">{ch.name}</h3>
                 {locked && (
                   <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                    Cần thanh toán
+                    Từ chương 2 — cần thanh toán
                   </span>
                 )}
               </div>
@@ -113,7 +113,7 @@ export default function LearnCourseAccordion({
                     href={checkoutUrl}
                     className="mt-4 inline-block rounded-full bg-[#002b2d] px-5 py-2 text-sm font-bold text-white hover:bg-[#004144]"
                   >
-                    Thanh toán để tiếp tục
+                    Thanh toán để tiếp tục học
                   </Link>
                 )}
               </div>

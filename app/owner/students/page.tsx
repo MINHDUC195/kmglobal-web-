@@ -15,6 +15,7 @@ type Student = {
   created_at: string;
   enrolled_courses: string[];
   payment_status: string;
+  account_abuse_locked?: boolean;
 };
 
 type StudentDetail = {
@@ -46,6 +47,7 @@ export default function OwnerStudentsPage() {
   const [promoteTarget, setPromoteTarget] = useState<Student | null>(null);
   const [promoteConfirmStep, setPromoteConfirmStep] = useState(1);
   const [promoting, setPromoting] = useState(false);
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   async function loadStudents() {
     setLoading(true);
@@ -113,6 +115,28 @@ export default function OwnerStudentsPage() {
   function closePromoteModal() {
     setPromoteTarget(null);
     setPromoteConfirmStep(1);
+  }
+
+  async function handleUnlockAbuse(student: Student) {
+    if (!student.account_abuse_locked) return;
+    setUnlockingId(student.id);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/owner/students/${encodeURIComponent(student.id)}/unlock-abuse`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Không mở khóa được.");
+        return;
+      }
+      await loadStudents();
+    } catch {
+      setError("Không thể kết nối.");
+    } finally {
+      setUnlockingId(null);
+    }
   }
 
   async function handlePromoteToAdmin() {
@@ -238,6 +262,21 @@ export default function OwnerStudentsPage() {
                     </td>
                     <td className="py-3 pr-4 text-center">
                       <div className="flex flex-wrap items-center justify-center gap-2">
+                        {s.account_abuse_locked && (
+                          <span className="rounded border border-red-400/40 px-2 py-0.5 text-[10px] font-semibold uppercase text-red-300">
+                            Khóa abuse
+                          </span>
+                        )}
+                        {s.account_abuse_locked && (
+                          <button
+                            type="button"
+                            disabled={unlockingId === s.id}
+                            onClick={() => void handleUnlockAbuse(s)}
+                            className="rounded-lg border border-amber-500/60 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/15 disabled:opacity-50"
+                          >
+                            {unlockingId === s.id ? "Đang mở..." : "Mở khóa abuse"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => openDetailModal(s)}

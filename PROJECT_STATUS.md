@@ -117,7 +117,7 @@ Danh sách đầy đủ: thư mục [`supabase/migrations`](supabase/migrations)
 | Programs phê duyệt, visibility khóa theo ngày | `20250330000001`, `20250332000001` |
 | Admin/Owner, invoice, student code, avatar | `20250325000001` … `20250329000001`, `20260319120000` … |
 | Giảm giá `regular_courses` | `20260321100000_regular_courses_discount` |
-| RLS `questions` (học viên không SELECT trực tiếp) | `20260324120000_questions_rls_remove_student_select` |
+| RLS `questions` (học viên không SELECT trực tiếp) | `20260324120100_questions_rls_remove_student_select` |
 | Xóa khóa (Owner), edit locks, audit, legal pages | `20260320140000`, `20260320150000`, `20260319140000`, `20260320130000` |
 
 **Lưu ý:** Môi trường production cần **đã apply** toàn bộ migration tương ứng với code hiện tại (bao gồm discount, RLS questions, v.v.).

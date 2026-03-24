@@ -34,12 +34,6 @@ const modules = [
     icon: "📊",
   },
   {
-    title: "Cấu hình",
-    desc: "Thiết lập hệ thống, thanh toán, tham số",
-    href: "/owner/settings",
-    icon: "⚙️",
-  },
-  {
     title: "Điều khoản & chính sách",
     desc: "Soạn thảo nội dung hiển thị công khai cho học viên",
     href: "/owner/legal",
@@ -56,7 +50,7 @@ export default function OwnerDashboardPage() {
             Dashboard Owner
           </h1>
           <p className="mt-1 text-gray-400">
-            Quản trị cấp cao: Admin, báo cáo và cấu hình hệ thống.
+            Quản trị cấp cao: Admin, học viên, báo cáo và chương trình đào tạo.
           </p>
         </div>
         <div className="flex gap-2">

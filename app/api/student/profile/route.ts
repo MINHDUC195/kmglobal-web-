@@ -6,12 +6,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
+import { validateOrigin } from "../../../../lib/csrf";
+import { checkRateLimit } from "../../../../lib/rate-limit";
 
 export async function PATCH(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
+
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+  }
+
+  const rl = await checkRateLimit(`student-profile-patch:${user.id}`, 30, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Quá nhiều yêu cầu. Thử lại sau." },
+      { status: 429 }
+    );
   }
 
   let body: {

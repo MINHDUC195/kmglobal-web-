@@ -16,11 +16,7 @@ type FinalExamManagerProps = {
   finalExamName: string;
 };
 
-export default function FinalExamManager({
-  baseCourseId,
-  finalExamId: _finalExamId,
-  finalExamName: _finalExamName,
-}: FinalExamManagerProps) {
+export default function FinalExamManager({ baseCourseId }: FinalExamManagerProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   /** null | library: panel chọn từ thư viện (thủ công = link sang trang soạn câu) */

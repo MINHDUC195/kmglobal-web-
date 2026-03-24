@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import DashboardNav from "../../components/DashboardNav";
 import Footer from "../../components/Footer";
 import StudentNav from "../../components/StudentNav";
+import { guardStudentAccountOrRedirect } from "../../lib/student-account-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ export default async function StudentLayout({
   if (!user) {
     redirect("/login?to=/student");
   }
+
+  await guardStudentAccountOrRedirect(user.id);
 
   return (
     <div className="min-h-screen bg-[#0a1628]">

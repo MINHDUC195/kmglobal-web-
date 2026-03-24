@@ -48,6 +48,7 @@ export default function EditRegularCoursePage() {
   const [programName, setProgramName] = useState("");
   const [baseCourseId, setBaseCourseId] = useState<string | null>(null);
   const [baseCourseName, setBaseCourseName] = useState("");
+  const [discountPercentLocked, setDiscountPercentLocked] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -79,6 +80,8 @@ export default function EditRegularCoursePage() {
         setBaseCourseId(bc.id);
         setBaseCourseName(bc.name?.trim() || "");
       }
+      const locked = (data as { discount_percent_locked?: boolean }).discount_percent_locked === true;
+      setDiscountPercentLocked(locked);
     }
     void load().finally(() => setLoading(false));
   }, [id, supabase]);
@@ -93,21 +96,26 @@ export default function EditRegularCoursePage() {
       const discountVal = discountPercent.trim()
         ? Math.min(99, Math.max(0, Math.round(parseFloat(discountPercent))))
         : null;
-      if (discountVal !== null && (discountVal < 1 || discountVal > 99)) throw new Error("Giảm giá phải từ 1-99%");
+      if (!discountPercentLocked) {
+        if (discountVal !== null && (discountVal < 1 || discountVal > 99)) {
+          throw new Error("Giảm giá phải từ 1-99%");
+        }
+      }
 
-      const { error: err } = await supabase
-        .from("regular_courses")
-        .update({
-          name: name.trim(),
-          price_cents: priceVal,
-          discount_percent: discountVal,
-          registration_open_at: fromLocalDateTime(registrationOpenAt),
-          registration_close_at: fromLocalDateTime(registrationCloseAt),
-          course_start_at: fromLocalDateTime(courseStartAt),
-          course_end_at: fromLocalDateTime(courseEndAt),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const patch: Record<string, string | number | null> = {
+        name: name.trim(),
+        price_cents: priceVal,
+        registration_open_at: fromLocalDateTime(registrationOpenAt),
+        registration_close_at: fromLocalDateTime(registrationCloseAt),
+        course_start_at: fromLocalDateTime(courseStartAt),
+        course_end_at: fromLocalDateTime(courseEndAt),
+        updated_at: new Date().toISOString(),
+      };
+      if (!discountPercentLocked) {
+        patch.discount_percent = discountVal;
+      }
+
+      const { error: err } = await supabase.from("regular_courses").update(patch).eq("id", id);
 
       if (err) throw new Error(err.message);
       router.push(`/admin/regular-courses/${id}`);
@@ -204,9 +212,18 @@ export default function EditRegularCoursePage() {
               value={discountPercent}
               onChange={(e) => setDiscountPercent(e.target.value)}
               placeholder="VD: 10 (để trống = không giảm)"
-              className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-white outline-none focus:border-[#D4AF37]"
+              disabled={discountPercentLocked}
+              className={`w-full rounded-xl border border-white/15 px-4 py-3 text-white outline-none focus:border-[#D4AF37] ${
+                discountPercentLocked
+                  ? "cursor-not-allowed bg-[#0b1323]/60 text-gray-400"
+                  : "bg-[#0b1323]"
+              }`}
             />
-            <p className="mt-1 text-xs text-gray-500">1-99%. Để trống nếu không giảm giá.</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {discountPercentLocked
+                ? "Giảm giá đã cố định khi tạo khóa từ nhân bản. Không chỉnh sau để tránh lệch giá thanh toán hoặc nhiều yêu cầu thanh toán cho cùng học viên."
+                : "1-99%. Để trống nếu không giảm giá."}
+            </p>
           </div>
 
           <div>

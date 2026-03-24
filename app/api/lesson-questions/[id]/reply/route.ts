@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateLessonQuestionContent } from "@/lib/lesson-question-validation";
+import { validateOrigin } from "@/lib/csrf";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/lesson-questions/[id]/reply
@@ -17,6 +19,10 @@ export async function POST(
     const { id: questionId } = await params;
     if (!questionId) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    if (!validateOrigin(request)) {
+      return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
     }
 
     const cookieStore = await cookies();
@@ -36,6 +42,14 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = await checkRateLimit(`lesson-question-reply:${user.id}`, 40, 60_000);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Quá nhiều yêu cầu. Thử lại sau." },
+        { status: 429 }
+      );
     }
 
     const body = await request.json();

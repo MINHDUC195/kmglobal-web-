@@ -34,6 +34,27 @@ export async function POST(
   }
 
   const admin = getSupabaseAdminClient();
+  const { data: payment, error: fetchErr } = await admin
+    .from("payments")
+    .select("id, status, invoice_exported_at")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (fetchErr || !payment) {
+    return NextResponse.json({ error: "Không tìm thấy giao dịch" }, { status: 404 });
+  }
+
+  if ((payment as { status?: string }).status !== "completed") {
+    return NextResponse.json(
+      { error: "Chỉ xuất hóa đơn khi thanh toán đã hoàn tất." },
+      { status: 400 }
+    );
+  }
+
+  if ((payment as { invoice_exported_at?: string | null }).invoice_exported_at) {
+    return NextResponse.json({ success: true });
+  }
+
   const { error } = await admin
     .from("payments")
     .update({

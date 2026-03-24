@@ -31,16 +31,30 @@ export async function GET() {
   // Học viên: role='student' HOẶC không phải owner/admin (bao gồm role null từ dữ liệu cũ)
   let allProfiles: { id: string; full_name?: string | null; email?: string | null; phone?: string | null; company?: string | null; address?: string | null; gender?: string | null; student_code?: string | null; created_at?: string | null; role?: string | null }[] = [];
 
-  const res1 = await admin
+  const selectWithLocks =
+    "id, full_name, email, phone, company, address, gender, student_code, created_at, role, account_abuse_locked";
+  const selectWithoutAbuseLock =
+    "id, full_name, email, phone, company, address, gender, student_code, created_at, role";
+  const selectWithoutStudentCode =
+    "id, full_name, email, phone, company, address, gender, created_at, role";
+
+  let res1 = await admin
     .from("profiles")
-    .select("id, full_name, email, phone, company, address, gender, student_code, created_at, role")
+    .select(selectWithLocks)
     .order("created_at", { ascending: true });
+
+  if (res1.error?.message?.includes("account_abuse_locked")) {
+    res1 = (await admin
+      .from("profiles")
+      .select(selectWithoutAbuseLock)
+      .order("created_at", { ascending: true })) as typeof res1;
+  }
 
   if (res1.error) {
     if (res1.error.message?.includes("student_code")) {
       const res2 = await admin
         .from("profiles")
-        .select("id, full_name, email, phone, company, address, gender, created_at, role")
+        .select(selectWithoutStudentCode)
         .order("created_at", { ascending: true });
       if (!res2.error) {
         allProfiles = (res2.data ?? []).map((r) => ({ ...r, student_code: null }));
@@ -51,7 +65,10 @@ export async function GET() {
       return NextResponse.json({ error: res1.error.message }, { status: 500 });
     }
   } else {
-    allProfiles = res1.data ?? [];
+    allProfiles = (res1.data ?? []).map((r) => ({
+      ...r,
+      account_abuse_locked: (r as { account_abuse_locked?: boolean }).account_abuse_locked ?? false,
+    }));
   }
 
   const students = (allProfiles ?? []).filter(
@@ -136,6 +153,7 @@ export async function GET() {
       created_at: s.created_at,
       enrolled_courses: courseNames,
       payment_status: paymentStatus,
+      account_abuse_locked: Boolean((s as { account_abuse_locked?: boolean }).account_abuse_locked),
     };
   });
 

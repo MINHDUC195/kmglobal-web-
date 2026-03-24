@@ -83,14 +83,51 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = getSupabaseAdminClient();
+
+    const { data: lockProfile } = await admin
+      .from("profiles")
+      .select("account_abuse_locked, self_temp_lock_until")
+      .eq("id", user.id)
+      .single();
+    const lp = lockProfile as {
+      account_abuse_locked?: boolean | null;
+      self_temp_lock_until?: string | null;
+    } | null;
+    if (lp?.account_abuse_locked) {
+      return NextResponse.json(
+        { error: "Tài khoản của bạn đang bị khóa. Vui lòng liên hệ Owner." },
+        { status: 403 }
+      );
+    }
+    if (lp?.self_temp_lock_until && new Date(lp.self_temp_lock_until) > new Date()) {
+      return NextResponse.json(
+        { error: "Tài khoản đang trong thời gian tạm khóa." },
+        { status: 403 }
+      );
+    }
+
     const { data: course, error: cErr } = await admin
       .from("regular_courses")
-      .select("id, name, price_cents, discount_percent, registration_open_at, registration_close_at")
+      .select("id, name, base_course_id, price_cents, discount_percent, registration_open_at, registration_close_at")
       .eq("id", courseId)
       .single();
 
     if (cErr || !course) {
       return NextResponse.json({ error: "Khóa học không tồn tại" }, { status: 404 });
+    }
+
+    const { data: existingSameCourse } = await admin
+      .from("enrollments")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("regular_course_id", courseId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (existingSameCourse) {
+      return NextResponse.json(
+        { error: "Bạn đã đăng ký khóa học này rồi. Vào trang học để tiếp tục." },
+        { status: 400 }
+      );
     }
 
     const now = new Date();
@@ -103,18 +140,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Đã hết hạn đăng ký" }, { status: 400 });
     }
 
-    const { data: existingEnrollment } = await admin
-      .from("enrollments")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("regular_course_id", courseId)
-      .eq("status", "active")
-      .maybeSingle();
-    if (existingEnrollment) {
-      return NextResponse.json(
-        { error: "Bạn đã đăng ký khóa học này rồi. Vào trang học để tiếp tục." },
-        { status: 400 }
-      );
+    const baseCourseId = (course as { base_course_id?: string }).base_course_id;
+    if (baseCourseId) {
+      const { data: rcList } = await admin
+        .from("regular_courses")
+        .select("id")
+        .eq("base_course_id", baseCourseId);
+      const rcIds = (rcList ?? []).map((r) => r.id).filter((id) => id !== courseId);
+      const { data: existingSameBase } = rcIds.length
+        ? await admin
+            .from("enrollments")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("status", "active")
+            .in("regular_course_id", rcIds)
+            .limit(1)
+        : { data: [] };
+      if (existingSameBase?.length) {
+        return NextResponse.json(
+          {
+            error:
+              "Bạn đã đăng ký khóa học này rồi. Nếu muốn đăng ký khóa mới, vui lòng hủy đăng ký khóa cũ trước.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // price_cents: VND amount. Áp dụng giảm giá nếu có.

@@ -188,6 +188,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
           status: "draft",
           price_cents: priceVal,
           discount_percent: discountVal,
+          discount_percent_locked: true,
         })
         .select()
         .single();
@@ -556,7 +557,9 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
                   placeholder="VD: 10 (để trống = không giảm)"
                   className="w-full rounded-lg border border-white/15 bg-[#0b1323] px-3 py-2 text-white outline-none focus:border-[#D4AF37]"
                 />
-                <p className="mt-1 text-xs text-gray-500">1-99% để thu hút khách hàng.</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  1-99% để thu hút khách hàng. Sau khi tạo khóa, % giảm giá được cố định — không chỉnh lại trong màn sửa khóa học thường (tránh lệch giá thanh toán / nhiều yêu cầu thanh toán).
+                </p>
               </div>
             </div>
             {error && (

@@ -9,6 +9,7 @@ import {
   buildCorrectAnswerDisplay,
   buildStudentAnswerDisplay,
 } from "../../../../lib/quiz-answer-display";
+import { isCourseExpiredUncompleted } from "../../../../lib/course-expired-uncompleted";
 
 const EPS = 1e-6;
 
@@ -57,13 +58,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { questionId, selectedOptionIds, fillBlankAnswer } = body;
+    const { questionId, selectedOptionIds, fillBlankAnswer, enrollmentId } = body;
 
     if (!questionId) {
       return NextResponse.json({ error: "questionId required" }, { status: 400 });
     }
 
     const admin = getSupabaseAdminClient();
+
+    if (enrollmentId && (await isCourseExpiredUncompleted(admin, enrollmentId))) {
+      return NextResponse.json(
+        { error: "Khóa học đã kết thúc, bạn không thể làm bài tập." },
+        { status: 403 }
+      );
+    }
 
     const { data: question, error: qErr } = await admin
       .from("questions")

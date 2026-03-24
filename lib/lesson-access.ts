@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveEnrollmentPaymentAccess } from "./enrollment-payment-status";
 
 export type LessonRecord = {
   id: string;
@@ -82,11 +83,16 @@ export async function getLessonWithAccess(
   const { data: enrollments } = rcIds.length
     ? await admin
         .from("enrollments")
-        .select("id, payment_id, regular_course_id")
+        .select(`
+          id,
+          payment_id,
+          regular_course_id,
+          regular_course:regular_courses(price_cents, discount_percent)
+        `)
         .eq("user_id", userId)
         .eq("status", "active")
         .in("regular_course_id", rcIds)
-    : { data: [] as MatchedEnrollment[] };
+    : { data: [] as (MatchedEnrollment & { regular_course?: { price_cents?: number | null; discount_percent?: number | null } | null })[] };
 
   const enrollment = enrollmentIdParam
     ? (enrollments ?? []).find((e) => e.id === enrollmentIdParam)
@@ -96,15 +102,12 @@ export async function getLessonWithAccess(
     return { ok: false, status: 403, message: "Bạn chưa đăng ký khóa học này" };
   }
 
-  let isPaid = false;
-  if (enrollment.payment_id) {
-    const { data: payment } = await admin
-      .from("payments")
-      .select("status")
-      .eq("id", enrollment.payment_id)
-      .single();
-    isPaid = (payment as { status?: string } | null)?.status === "completed";
-  }
+  const { isPaid } = await resolveEnrollmentPaymentAccess(admin, {
+    payment_id: enrollment.payment_id,
+    regular_course:
+      (enrollment as { regular_course?: { price_cents?: number | null; discount_percent?: number | null } | null })
+        .regular_course ?? null,
+  });
 
   if (!isPaid) {
     const { data: allChapters } = await admin
@@ -114,11 +117,13 @@ export async function getLessonWithAccess(
       .order("sort_order", { ascending: true });
     const chapterIdsByOrder = (allChapters ?? []).map((c) => c.id);
     const chapterIndex = chapterIdsByOrder.indexOf(lesson.chapter_id);
-    if (chapterIndex >= 2) {
+    // Chương 1 (index 0) học thử; từ chương 2 trở đi cần thanh toán (khóa trả phí).
+    if (chapterIndex >= 1) {
       return {
         ok: false,
         status: 403,
-        message: "Bạn cần thanh toán để truy cập nội dung từ chương 3 trở đi",
+        message:
+          "Bạn cần thanh toán để truy cập nội dung từ chương 2 trở đi (bao gồm bài tập).",
       };
     }
   }

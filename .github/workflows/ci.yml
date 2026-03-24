@@ -1,0 +1,39 @@
+# Lint, test, build và kiểm tra biến môi trường tối thiểu (placeholder cho CI).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      # Giá trị giả lập — chỉ để script check-production-env.mjs chạy được trên CI (không kết nối DB thật).
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key-min-32-chars-xxxxxxxx
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key-min-32-chars-xxxx
+      NEXT_PUBLIC_SITE_URL: https://ci.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Vitest
+        run: npm test
+
+      - name: Production env check
+        run: node scripts/check-production-env.mjs
+
+      - name: Next.js build
+        run: npm run build

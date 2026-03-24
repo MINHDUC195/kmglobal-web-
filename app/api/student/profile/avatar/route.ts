@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { validateOrigin } from "@/lib/csrf";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg"]);
@@ -17,12 +19,24 @@ function extFromMime(mime: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
+
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+  }
+
+  const rl = await checkRateLimit(`avatar-upload:${user.id}`, 15, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Quá nhiều lần tải ảnh. Thử lại sau." },
+      { status: 429 }
+    );
   }
 
   let form: FormData;

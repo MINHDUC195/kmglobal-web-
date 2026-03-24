@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
+import { guardStudentAccountOrRedirect } from "../../../lib/student-account-guard";
 import { daysUntil } from "../../../lib/course-lifecycle";
 import { getSupabaseAdminClient } from "../../../lib/supabase-admin";
 import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
 import LearnNavTabs from "./LearnNavTabs";
-import LearnSidebar from "./LearnSidebar";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,21 @@ export default async function LearnLayout({ params, children }: LearnLayoutProps
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) notFound();
 
+  await guardStudentAccountOrRedirect(user.id);
+
   const admin = getSupabaseAdminClient();
+  const { data: profileRow } = await admin
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+  const profileFullName = (profileRow as { full_name?: string | null } | null)?.full_name?.trim();
+  const studentDisplayName =
+    profileFullName ||
+    (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "") ||
+    (user.email ? user.email.split("@")[0] : "") ||
+    "Học viên";
+
   const { data: enrollment, error: eErr } = await admin
     .from("enrollments")
     .select(`
@@ -43,14 +57,20 @@ export default async function LearnLayout({ params, children }: LearnLayoutProps
   return (
     <div className="min-h-screen bg-white">
       <nav className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-[var(--container-max)] items-center justify-between px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-[var(--container-max)] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <NavLogoWithBanner variant="light" />
-          <Link
-            href="/student"
-            className="text-sm text-gray-600 hover:text-[#002b2d]"
-          >
-            ← Dashboard
-          </Link>
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <p className="text-sm text-gray-600">
+              Xin chào:{" "}
+              <span className="font-medium text-[#002b2d]">{studentDisplayName}</span>.
+            </p>
+            <Link
+              href="/student"
+              className="text-sm text-gray-600 hover:text-[#002b2d]"
+            >
+              ← Dashboard
+            </Link>
+          </div>
         </div>
       </nav>
 
@@ -68,11 +88,8 @@ export default async function LearnLayout({ params, children }: LearnLayoutProps
 
         <LearnNavTabs enrollmentId={enrollmentId} />
 
-        <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:gap-10">
-          <main className="min-w-0 flex-1">{children}</main>
-          <aside className="w-full shrink-0 lg:w-80">
-            <LearnSidebar enrollmentId={enrollmentId} />
-          </aside>
+        <div className="mt-6">
+          <main className="min-w-0">{children}</main>
         </div>
       </div>
     </div>

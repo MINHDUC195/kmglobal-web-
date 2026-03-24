@@ -34,7 +34,6 @@ export default function EditLessonPage() {
   const [description, setDescription] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [documentUrl, setDocumentUrl] = useState("");
-  const [chapterId, setChapterId] = useState("");
   const [chapterName, setChapterName] = useState("");
   const [baseCourseId, setBaseCourseId] = useState("");
   const [baseCourseName, setBaseCourseName] = useState("");
@@ -104,7 +103,6 @@ export default function EditLessonPage() {
       setDescription(lesson.description ?? "");
       setVideoUrl(lesson.video_url ?? "");
       setDocumentUrl(lesson.document_url ?? "");
-      setChapterId(ch?.id ?? "");
       if (!bcId) {
         setBaseCourseId("");
         setBaseCourseName("");

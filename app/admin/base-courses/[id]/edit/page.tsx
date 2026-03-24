@@ -114,7 +114,7 @@ export default function EditBaseCoursePage() {
       }
     }
     void load().finally(() => setLoading(false));
-  }, [id, supabase]);
+  }, [id, supabase, router]);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

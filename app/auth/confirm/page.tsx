@@ -3,12 +3,30 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
 import { getSupabaseBrowserClient } from "../../../lib/supabase-browser";
 
+const OTP_TYPES: readonly EmailOtpType[] = [
+  "signup",
+  "email",
+  "invite",
+  "magiclink",
+  "recovery",
+  "email_change",
+];
+
+function parseOtpType(raw: string | null): EmailOtpType | null {
+  if (!raw) return null;
+  return OTP_TYPES.includes(raw as EmailOtpType) ? (raw as EmailOtpType) : null;
+}
+
 /**
- * Trang xác nhận email - Supabase redirect về đây sau khi user click link trong email
- * URL sẽ chứa hash (#access_token=...) - Supabase client tự xử lý và tạo session
+ * Trang xác nhận email — Supabase redirect về đây sau khi user nhấp link trong email.
+ * Hỗ trợ:
+ * - PKCE: ?code=... (mặc định trên dự án Supabase mới) → exchangeCodeForSession
+ * - Một số template: ?token_hash=...&type=signup → verifyOtp
+ * - Implicit (cũ): #access_token=... → client đọc hash và getSession
  */
 export default function AuthConfirmPage() {
   const router = useRouter();
@@ -17,12 +35,85 @@ export default function AuthConfirmPage() {
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
-    const hasHash = typeof window !== "undefined" && window.location.hash?.length > 0;
 
     async function handleConfirm() {
       try {
+        if (typeof window === "undefined") return;
+
+        const url = new URL(window.location.href);
+        const params = url.searchParams;
+
+        const authError = params.get("error");
+        const authErrorDesc = params.get("error_description");
+        if (authError) {
+          setStatus("error");
+          setMessage(
+            authErrorDesc
+              ? decodeURIComponent(authErrorDesc.replace(/\+/g, " "))
+              : "Liên kết xác nhận không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập hoặc gửi lại email xác nhận."
+          );
+          return;
+        }
+
+        const code = params.get("code");
+        if (code) {
+          const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeErr) {
+            console.warn("[auth/confirm] exchangeCodeForSession:", exchangeErr.message);
+            setStatus("error");
+            setMessage(
+              "Liên kết xác nhận không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập hoặc gửi lại email xác nhận."
+            );
+            return;
+          }
+          window.history.replaceState(null, "", url.pathname);
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session?.user) {
+            setStatus("success");
+            setMessage("Email của bạn đã được xác nhận thành công.");
+            setTimeout(() => router.push("/login"), 2000);
+            return;
+          }
+          setStatus("error");
+          setMessage(
+            "Liên kết xác nhận không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập hoặc gửi lại email xác nhận."
+          );
+          return;
+        }
+
+        const tokenHash = params.get("token_hash");
+        const otpType = parseOtpType(params.get("type"));
+        if (tokenHash && otpType) {
+          const { error: otpErr } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: otpType,
+          });
+          if (otpErr) {
+            console.warn("[auth/confirm] verifyOtp:", otpErr.message);
+            setStatus("error");
+            setMessage(
+              "Liên kết xác nhận không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập hoặc gửi lại email xác nhận."
+            );
+            return;
+          }
+          window.history.replaceState(null, "", url.pathname);
+          const {
+            data: { session: s2 },
+          } = await supabase.auth.getSession();
+          if (s2?.user) {
+            setStatus("success");
+            setMessage("Email của bạn đã được xác nhận thành công.");
+            setTimeout(() => router.push("/login"), 2000);
+            return;
+          }
+        }
+
         await supabase.auth.getSession();
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
         if (session?.user) {
           setStatus("success");
@@ -32,9 +123,12 @@ export default function AuthConfirmPage() {
           return;
         }
 
+        const hasHash = window.location.hash?.length > 0;
         if (hasHash) {
           await new Promise((r) => setTimeout(r, 800));
-          const { data: { session: retrySession } } = await supabase.auth.getSession();
+          const {
+            data: { session: retrySession },
+          } = await supabase.auth.getSession();
           if (retrySession?.user) {
             setStatus("success");
             setMessage("Email của bạn đã được xác nhận thành công.");
@@ -46,11 +140,12 @@ export default function AuthConfirmPage() {
 
         setStatus("error");
         setMessage(
-          hasHash
+          hasHash || code || tokenHash
             ? "Liên kết xác nhận không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập hoặc gửi lại email xác nhận."
             : "Vui lòng nhấp vào link xác nhận trong email của bạn."
         );
-      } catch {
+      } catch (err) {
+        console.error("[auth/confirm]", err);
         setStatus("error");
         setMessage("Có lỗi xảy ra khi xác nhận. Vui lòng thử lại.");
       }

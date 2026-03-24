@@ -9,6 +9,8 @@ import { createServerSupabaseClient } from "../lib/supabase-server";
 import { getCourseDisplayStatus } from "../lib/course-status";
 import { daysUntil } from "../lib/course-lifecycle";
 import { formatPriceDisplay } from "../lib/course-price";
+import { stripRevSuffix } from "../lib/course-display-name";
+import { getBaseCourseIdsToHideForUser } from "../lib/hide-improved-courses-for-old-students";
 
 type LandingPageProps = {
   searchParams: Promise<{ toast?: string }>;
@@ -58,12 +60,18 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
     }
   }
 
+  const baseCourseIdsToHide = await getBaseCourseIdsToHideForUser(admin, user?.id ?? null);
+
   const now = new Date();
-  const openCourses = (allCourses ?? []).filter(
+  let openCourses = (allCourses ?? []).filter(
     (c) =>
       (c.registration_close_at == null || new Date(c.registration_close_at) >= now) &&
       (c.course_end_at == null || new Date(c.course_end_at) >= now)
   );
+  openCourses = openCourses.filter((c) => {
+    const base = c.base_course as { id?: string } | null;
+    return !base?.id || !baseCourseIdsToHide.has(base.id);
+  });
   const displayCourses = openCourses.slice(0, 6);
 
   /** Map: programId -> baseCourseId -> first regular course (for direct link) */
@@ -185,22 +193,24 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
                   className="group flex flex-col rounded-2xl border border-white/10 bg-white/5 p-6 transition-all duration-300 hover:border-[#D4AF37]/40 hover:shadow-[0_0_40px_rgba(212,175,55,0.15)] sm:p-8"
                 >
                   <span className="inline-flex w-fit items-center rounded-full border border-[#D4AF37]/50 bg-[#D4AF37]/10 px-4 py-1.5 font-mono text-sm font-bold tracking-wide text-[#D4AF37] shadow-[0_0_18px_rgba(212,175,55,0.12)]">
-                    {p.name}
+                    {stripRevSuffix(p.name) || p.name}
                   </span>
                   {p.note && (
                     <p className="mt-3 flex-1 text-sm leading-relaxed text-gray-400">{p.note}</p>
                   )}
-                  {baseCourses.length > 0 && (
+                  {baseCourses.filter((b) => !baseCourseIdsToHide.has(b.id)).length > 0 && (
                     <div className="mt-4">
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                         CÁC KHÓA HỌC
                       </p>
                       <div className="flex flex-wrap gap-2">
-                        {baseCourses.map((b) => {
+                        {baseCourses
+                          .filter((b) => !baseCourseIdsToHide.has(b.id))
+                          .map((b) => {
                           const rc = baseToRegular?.get(b.id);
                           const content = (
                             <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-gray-300 transition hover:bg-[#D4AF37]/20 hover:text-[#D4AF37]">
-                              {b.name}
+                              {stripRevSuffix(b.name) || b.name}
                             </span>
                           );
                           return rc ? (
@@ -286,7 +296,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
                   >
                     <Link href={`/courses/${c.id}`} className="block">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <h3 className="font-semibold text-white">{c.name}</h3>
+                        <h3 className="font-semibold text-white">{stripRevSuffix(c.name) || c.name}</h3>
                         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                           {isEnrolled ? (
                             <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
@@ -301,8 +311,8 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
                           )}
                         </div>
                       </div>
-                      {program?.name && (
-                        <p className="mt-1 text-sm text-gray-400">{program.name}</p>
+                      {(stripRevSuffix(program?.name) || program?.name) && (
+                        <p className="mt-1 text-sm text-gray-400">{stripRevSuffix(program?.name) || program?.name}</p>
                       )}
                       {base?.summary && (
                         <p className="mt-2 line-clamp-2 text-sm text-gray-300">{base.summary}</p>

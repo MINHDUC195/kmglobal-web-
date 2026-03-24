@@ -7,6 +7,8 @@ import Footer from "../../components/Footer";
 import { getCourseDisplayStatus } from "../../lib/course-status";
 import { daysUntil } from "../../lib/course-lifecycle";
 import { formatPriceDisplay } from "../../lib/course-price";
+import { stripRevSuffix } from "../../lib/course-display-name";
+import { getBaseCourseIdsToHideForUser } from "../../lib/hide-improved-courses-for-old-students";
 
 export const metadata = {
   title: "Khóa học | KM Global Academy",
@@ -31,12 +33,18 @@ export default async function CoursesPage() {
     }
   }
 
+  const baseCourseIdsToHide = await getBaseCourseIdsToHideForUser(admin, user?.id ?? null);
+
   const now = new Date();
-  const courses = (allCourses ?? []).filter(
+  let courses = (allCourses ?? []).filter(
     (c) =>
       (c.registration_close_at == null || new Date(c.registration_close_at) >= now) &&
       (c.course_end_at == null || new Date(c.course_end_at) >= now)
   );
+  courses = courses.filter((c) => {
+    const base = c.base_course as { id?: string } | null;
+    return !base?.id || !baseCourseIdsToHide.has(base.id);
+  });
 
   return (
     <div className="min-h-screen bg-[#0a1628]">
@@ -89,7 +97,7 @@ export default async function CoursesPage() {
                 >
                   <Link href={`/courses/${c.id}`} className="block">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <h2 className="font-semibold text-white">{c.name}</h2>
+                      <h2 className="font-semibold text-white">{stripRevSuffix(c.name) || c.name}</h2>
                       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                         {isEnrolled ? (
                           <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-300">

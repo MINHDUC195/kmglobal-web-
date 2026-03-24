@@ -6,6 +6,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 /**
  * Next.js 16+: `proxy` replaces deprecated `middleware` file convention.
+ * Bảo vệ /owner (chỉ owner), /admin (owner | admin), /student, /learn, /checkout — sai role → /student.
  * @see https://nextjs.org/docs/app/api-reference/file-conventions/proxy
  */
 export async function proxy(request: NextRequest) {
@@ -49,7 +50,7 @@ export async function proxy(request: NextRequest) {
       .eq("id", user.id)
       .single();
     if (profile?.role !== "owner") {
-      return NextResponse.redirect(new URL("/?toast=admin-denied", request.url));
+      return NextResponse.redirect(new URL("/student", request.url));
     }
     if ((profile as { must_change_password?: boolean } | null)?.must_change_password) {
       const to = pathname + request.nextUrl.search;
@@ -70,7 +71,7 @@ export async function proxy(request: NextRequest) {
       .eq("id", user.id)
       .single();
     if (profile?.role !== "owner" && profile?.role !== "admin") {
-      return NextResponse.redirect(new URL("/?toast=admin-denied", request.url));
+      return NextResponse.redirect(new URL("/student", request.url));
     }
     if ((profile as { must_change_password?: boolean } | null)?.must_change_password) {
       const to = pathname + request.nextUrl.search;

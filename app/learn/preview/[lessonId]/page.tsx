@@ -43,6 +43,8 @@ type QuizQuestion = {
   /** Chỉ khi hết lượt hoặc đạt đủ điểm (API quiz/questions) */
   student_answer_display?: string;
   correct_answer_display?: string;
+  /** Khóa học đã đóng, chưa hoàn thành → khóa bài tập */
+  course_expired_locked?: boolean;
 };
 
 function PreviewLessonContent() {
@@ -68,9 +70,12 @@ function PreviewLessonContent() {
         const lessonUrl = enrollmentId
           ? `/api/lessons/${lessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`
           : `/api/lessons/${lessonId}`;
+        const questionsUrl = enrollmentId
+          ? `/api/quiz/questions?lessonId=${lessonId}&enrollmentId=${encodeURIComponent(enrollmentId)}`
+          : `/api/quiz/questions?lessonId=${lessonId}`;
         const [lessonRes, questionsRes] = await Promise.all([
           fetch(lessonUrl),
-          fetch(`/api/quiz/questions?lessonId=${lessonId}`),
+          fetch(questionsUrl),
         ]);
 
         if (!lessonRes.ok) {
@@ -130,6 +135,7 @@ function PreviewLessonContent() {
       } else {
         body.selectedOptionIds = selectedOptionIds ?? [];
       }
+      if (enrollmentId) body.enrollmentId = enrollmentId;
 
       const res = await fetch("/api/quiz/submit", {
         method: "POST",
@@ -156,7 +162,7 @@ function PreviewLessonContent() {
         correctAnswerDisplay: data.correctAnswerDisplay,
       };
     },
-    []
+    [enrollmentId]
   );
 
   const useEdXLayout =
@@ -237,11 +243,16 @@ function PreviewLessonContent() {
                 </section>
               )}
 
-              {questions.length > 0 && (
+              {questions.length > 0 ? (
                 <section>
                   <h2 className="mb-6 text-lg font-semibold text-[#002b2d]">
                     Câu hỏi kiểm tra
                   </h2>
+                  {questions.some((q) => q.course_expired_locked) && (
+                    <p className="mb-4 rounded-lg border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Khóa học đã kết thúc, bạn không thể làm bài tập hay xem đáp án.
+                    </p>
+                  )}
                   <div className="space-y-6">
                     {questions.map((q, qIdx) => {
                       const chapterNum = (lesson.chapter?.sort_order ?? 0) + 1;
@@ -253,6 +264,7 @@ function PreviewLessonContent() {
                         lesson.chapter && lesson.chapterLessons?.length
                           ? `Câu ${chapterNum}.${lessonNum1}.${questionNum}`
                           : `Câu ${questionNum}`;
+                      const quizLocked = !!q.course_expired_locked;
                       const commonProps = {
                         questionLabel,
                         maxPoints: q.points ?? 1,
@@ -262,6 +274,7 @@ function PreviewLessonContent() {
                         initialPointsEarned: q.points_earned ?? 0,
                         initialStudentAnswerDisplay: q.student_answer_display,
                         initialCorrectAnswerDisplay: q.correct_answer_display,
+                        disabled: quizLocked,
                       };
                       if (q.type === "single_choice") {
                         return (
@@ -307,6 +320,16 @@ function PreviewLessonContent() {
                       );
                     })}
                   </div>
+                </section>
+              ) : (
+                <section>
+                  <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">
+                    Bài tập kiểm tra
+                  </h2>
+                  <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                    Bài học này chưa có câu hỏi trắc nghiệm. Điểm quá trình khóa học không tính từ bài
+                    tập cho bài này; bạn vẫn có thể xem video, tài liệu và tham gia hỏi đáp bên dưới.
+                  </p>
                 </section>
               )}
 
@@ -390,11 +413,16 @@ function PreviewLessonContent() {
             </section>
           )}
 
-          {questions.length > 0 && (
+          {questions.length > 0 ? (
             <section>
               <h2 className="mb-6 text-lg font-semibold text-[#002b2d]">
                 Câu hỏi kiểm tra
               </h2>
+              {questions.some((q) => q.course_expired_locked) && (
+                <p className="mb-4 rounded-lg border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Khóa học đã kết thúc, bạn không thể làm bài tập hay xem đáp án.
+                </p>
+              )}
               <div className="space-y-6">
                 {questions.map((q, qIdx) => {
                   const chapterNum = (lesson.chapter?.sort_order ?? 0) + 1;
@@ -406,6 +434,7 @@ function PreviewLessonContent() {
                     lesson.chapter && lesson.chapterLessons?.length
                       ? `Câu ${chapterNum}.${lessonNum1}.${questionNum}`
                       : `Câu ${questionNum}`;
+                  const quizLocked = !!q.course_expired_locked;
                   const commonProps = {
                     questionLabel,
                     maxPoints: q.points ?? 1,
@@ -415,6 +444,7 @@ function PreviewLessonContent() {
                     initialPointsEarned: q.points_earned ?? 0,
                     initialStudentAnswerDisplay: q.student_answer_display,
                     initialCorrectAnswerDisplay: q.correct_answer_display,
+                    disabled: quizLocked,
                   };
                   if (q.type === "single_choice") {
                     return (
@@ -460,6 +490,14 @@ function PreviewLessonContent() {
                   );
                 })}
               </div>
+            </section>
+          ) : (
+            <section>
+              <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">Bài tập kiểm tra</h2>
+              <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                Bài học này chưa có câu hỏi trắc nghiệm. Điểm quá trình khóa học không tính từ bài
+                tập cho bài này; bạn vẫn có thể xem video, tài liệu và tham gia hỏi đáp bên dưới.
+              </p>
             </section>
           )}
 

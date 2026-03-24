@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMomoIpn, type MomoIpnPayload } from "../../../../lib/momo";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
+import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,16 +42,25 @@ export async function POST(request: NextRequest) {
 
     const metadata = payment.metadata as { course_id?: string } | null;
     const courseId = metadata?.course_id;
-    if (courseId) {
-      await admin.from("enrollments").upsert(
-        {
-          user_id: payment.user_id,
-          regular_course_id: courseId,
-          payment_id: body.orderId,
-          status: "active",
-        },
-        { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
+    if (courseId && payment.user_id) {
+      const gate = await assertEnrollmentCanActivateAfterPayment(
+        admin,
+        payment.user_id,
+        courseId
       );
+      if (!gate.ok) {
+        console.error("MoMo enrollment blocked:", gate.reason);
+      } else {
+        await admin.from("enrollments").upsert(
+          {
+            user_id: payment.user_id,
+            regular_course_id: courseId,
+            payment_id: body.orderId,
+            status: "active",
+          },
+          { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
+        );
+      }
     }
 
     return new NextResponse(null, { status: 204 });

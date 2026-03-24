@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
+import { resolveEnrollmentPaymentAccess } from "../../../../lib/enrollment-payment-status";
 
 export const dynamic = "force-dynamic";
 
@@ -76,9 +77,12 @@ export default async function LearnProgressPage({ params }: ProgressPageProps) {
     .from("enrollments")
     .select(`
       id,
+      payment_id,
       regular_course_id,
       regular_course:regular_courses(
         name,
+        price_cents,
+        discount_percent,
         base_course:base_courses(id, final_exam_weight_percent)
       )
     `)
@@ -89,7 +93,18 @@ export default async function LearnProgressPage({ params }: ProgressPageProps) {
 
   if (eErr || !enrollment) notFound();
 
-  const baseCourse = (enrollment.regular_course as { base_course?: { id?: string; final_exam_weight_percent?: number } } | null)?.base_course;
+  const rcProgress = enrollment.regular_course as {
+    price_cents?: number | null;
+    discount_percent?: number | null;
+    base_course?: { id?: string; final_exam_weight_percent?: number };
+  } | null;
+  const { needsPayment } = await resolveEnrollmentPaymentAccess(admin, {
+    payment_id: enrollment.payment_id,
+    regular_course: rcProgress ?? null,
+  });
+  const checkoutUrl = `/checkout?courseId=${enrollment.regular_course_id}`;
+
+  const baseCourse = rcProgress?.base_course;
   const baseCourseId = baseCourse?.id;
   if (!baseCourseId) notFound();
 
@@ -150,12 +165,6 @@ export default async function LearnProgressPage({ params }: ProgressPageProps) {
     }
   }
 
-  const { data: progressRows } = await admin
-    .from("lesson_progress")
-    .select("lesson_id")
-    .eq("enrollment_id", enrollmentId);
-  const completedLessonIds = new Set((progressRows ?? []).map((p) => p.lesson_id));
-
   const lessonsByChapter = (allLessons ?? []).reduce(
     (acc, l) => {
       if (!acc[l.chapter_id]) acc[l.chapter_id] = [];
@@ -188,9 +197,10 @@ export default async function LearnProgressPage({ params }: ProgressPageProps) {
           (s, q) => s + (bestPointsByQuestion[q.id] ?? 0),
           0
         );
+        // Bài không gắn câu hỏi: không cộng điểm giả (tránh hiển thị 1/1 điểm gây hiểu nhầm).
         if (lessonQs.length === 0) {
-          maxP = 1;
-          earnedP = completedLessonIds.has(lesson.id) ? 1 : 0;
+          maxP = 0;
+          earnedP = 0;
         }
         return {
           id: lesson.id,
@@ -252,6 +262,21 @@ export default async function LearnProgressPage({ params }: ProgressPageProps) {
   return (
     <div className="space-y-6">
       <h2 className="font-semibold text-[#002b2d]">Tiến độ khóa học</h2>
+
+      {needsPayment && (
+        <div className="rounded-xl border border-amber-500/50 bg-amber-50 px-5 py-4">
+          <p className="text-sm font-semibold text-amber-900">Chưa thanh toán</p>
+          <p className="mt-1 text-sm text-amber-900/90">
+            Từ chương 2 và bài thi cuối khóa chỉ mở sau khi bạn hoàn tất thanh toán.
+          </p>
+          <Link
+            href={checkoutUrl}
+            className="mt-3 inline-block rounded-full bg-[#002b2d] px-5 py-2 text-sm font-bold text-white hover:bg-[#004144]"
+          >
+            Thanh toán để tiếp tục học
+          </Link>
+        </div>
+      )}
 
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-end justify-between gap-4">

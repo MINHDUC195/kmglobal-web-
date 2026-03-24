@@ -44,7 +44,7 @@ Chạy migration trong Supabase SQL Editor. Nếu user đã tồn tại, chỉ c
 
 ## RLS bảng `questions` (học viên không SELECT trực tiếp)
 
-- **20260324120000_questions_rls_remove_student_select.sql** — Xóa policy cho phép mọi user đã đăng nhập đọc toàn bộ `questions`; đọc câu hỏi qua API server.
+- **20260324120100_questions_rls_remove_student_select.sql** — Xóa policy cho phép mọi user đã đăng nhập đọc toàn bộ `questions`; đọc câu hỏi qua API server.
 - Hoặc chạy một lần: `RUN_MIGRATION_QUESTIONS_RLS_NARROW.sql` trong SQL Editor.
 
 ## Cache catalog (Next.js)

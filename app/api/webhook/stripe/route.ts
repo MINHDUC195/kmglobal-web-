@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyStripeWebhook } from "../../../../lib/stripe";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
+import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,15 +56,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
 
-    await admin.from("enrollments").upsert(
-      {
-        user_id: userId,
-        regular_course_id: courseId,
-        payment_id: orderId,
-        status: "active",
-      },
-      { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
-    );
+    const gate = await assertEnrollmentCanActivateAfterPayment(admin, userId, courseId);
+    if (!gate.ok) {
+      console.error("Stripe enrollment blocked:", gate.reason);
+    } else {
+      await admin.from("enrollments").upsert(
+        {
+          user_id: userId,
+          regular_course_id: courseId,
+          payment_id: orderId,
+          status: "active",
+        },
+        { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
+      );
+    }
 
     return NextResponse.json({ received: true });
   } catch (err) {

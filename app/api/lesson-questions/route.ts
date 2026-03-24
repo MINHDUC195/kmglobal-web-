@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateLessonQuestionContent } from "@/lib/lesson-question-validation";
+import { validateOrigin } from "@/lib/csrf";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/lesson-questions?lessonId=...&enrollmentId=...
@@ -143,6 +145,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    if (!validateOrigin(request)) {
+      return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+    }
+
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -160,6 +166,14 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = await checkRateLimit(`lesson-question-post:${user.id}`, 20, 60_000);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Quá nhiều yêu cầu. Thử lại sau." },
+        { status: 429 }
+      );
     }
 
     const body = await request.json();

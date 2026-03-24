@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyVnpayReturn } from "../../../../../lib/vnpay";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
+import { assertEnrollmentCanActivateAfterPayment } from "../../../../../lib/enrollment-payment-activate";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -48,7 +49,18 @@ export async function GET(request: NextRequest) {
 
   const metadata = payment.metadata as { course_id?: string } | null;
   const courseId = metadata?.course_id;
-  if (courseId) {
+  if (courseId && payment.user_id) {
+    const gate = await assertEnrollmentCanActivateAfterPayment(
+      admin,
+      payment.user_id,
+      courseId
+    );
+    if (!gate.ok) {
+      console.error("VNPay enrollment blocked:", gate.reason);
+      return NextResponse.redirect(
+        new URL(`/checkout/failed?reason=enrollment_blocked`, request.url)
+      );
+    }
     await admin.from("enrollments").upsert(
       {
         user_id: payment.user_id,

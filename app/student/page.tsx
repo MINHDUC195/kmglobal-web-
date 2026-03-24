@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../lib/supabase-admin";
+import { getSalePriceCents } from "../../lib/course-price";
+import { resolveEnrollmentPaymentAccess } from "../../lib/enrollment-payment-status";
 import { loadLessonQuestionsForStudent } from "../../lib/lesson-questions-student";
 import ProgressBar from "../../components/ProgressBar";
+import SelfTempLockSection from "../../components/SelfTempLockSection";
 import { daysUntil } from "../../lib/course-lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +24,7 @@ export default async function StudentDashboardPage() {
       enrolled_at,
       payment_id,
       regular_course_id,
-      regular_courses(id, name, price_cents, registration_close_at, course_end_at, base_course:base_courses(id))
+      regular_courses(id, name, price_cents, discount_percent, registration_close_at, course_end_at, base_course:base_courses(id))
     `
     )
     .eq("user_id", user.id)
@@ -35,6 +38,7 @@ export default async function StudentDashboardPage() {
     completedCount: number;
     totalLessons: number;
     needsPayment: boolean;
+    salePriceCents: number;
     courseId: string;
     daysUntilRegClose: number | null;
     daysUntilCourseEnd: number | null;
@@ -63,18 +67,19 @@ export default async function StudentDashboardPage() {
       .eq("enrollment_id", e.id);
     const completedCount = progressRows?.length ?? 0;
 
-    const priceCents = Number((e.regular_courses as { price_cents?: number } | null)?.price_cents) || 0;
-    let needsPayment = priceCents > 0;
-    if (needsPayment && e.payment_id) {
-      const { data: payment } = await admin
-        .from("payments")
-        .select("status")
-        .eq("id", e.payment_id)
-        .single();
-      needsPayment = (payment as { status?: string } | null)?.status !== "completed";
-    }
-
-    const rc = e.regular_courses as { registration_close_at?: string | null; course_end_at?: string | null } | null;
+    const rc = e.regular_courses as {
+      price_cents?: number | null;
+      discount_percent?: number | null;
+      registration_close_at?: string | null;
+      course_end_at?: string | null;
+    } | null;
+    const priceCents = Number(rc?.price_cents) || 0;
+    const discountPercent = rc?.discount_percent ?? null;
+    const salePriceCents = getSalePriceCents(priceCents, discountPercent);
+    const { needsPayment } = await resolveEnrollmentPaymentAccess(admin, {
+      payment_id: e.payment_id,
+      regular_course: rc ?? null,
+    });
     list.push({
       id: e.id,
       courseName: (e.regular_courses as { name?: string } | null)?.name ?? "Khóa học",
@@ -82,6 +87,7 @@ export default async function StudentDashboardPage() {
       completedCount,
       totalLessons,
       needsPayment,
+      salePriceCents,
       courseId: e.regular_course_id,
       daysUntilRegClose: daysUntil(rc?.registration_close_at ?? null),
       daysUntilCourseEnd: daysUntil(rc?.course_end_at ?? null),
@@ -89,6 +95,15 @@ export default async function StudentDashboardPage() {
   }
 
   const lessonQuestions = await loadLessonQuestionsForStudent(user.id);
+
+  const { data: anyPaid } = await admin
+    .from("payments")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("status", "completed")
+    .limit(1)
+    .maybeSingle();
+  const hasPaidBefore = Boolean(anyPaid);
 
   return (
     <>
@@ -140,6 +155,16 @@ export default async function StudentDashboardPage() {
                   >
                     Vào học
                   </Link>
+                  {e.salePriceCents > 0 && !e.needsPayment && (
+                    <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
+                      Đã thanh toán
+                    </span>
+                  )}
+                  {e.salePriceCents <= 0 && (
+                    <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-gray-400">
+                      Miễn phí
+                    </span>
+                  )}
                   {e.needsPayment && (
                     <Link
                       href={`/checkout?courseId=${e.courseId}`}
@@ -175,6 +200,8 @@ export default async function StudentDashboardPage() {
           Khám phá thêm khóa học
         </Link>
       )}
+
+      <SelfTempLockSection hasPaidBefore={hasPaidBefore} />
 
       {lessonQuestions.length > 0 && (
         <section className="mt-14">

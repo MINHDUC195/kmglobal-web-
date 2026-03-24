@@ -8,6 +8,7 @@ import { formatPriceDisplay } from "../../../lib/course-price";
 import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
 import CourseDetailModal from "./CourseDetailModal";
 import EnrollButton from "../../../components/EnrollButton";
+import CancelEnrollmentButton from "../../../components/CancelEnrollmentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,7 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
   const { data: { user } } = await supabase.auth.getUser();
   let isAdminOrOwnerView = false;
   let userEnrollmentId: string | null = null;
+  let enrollmentHasCertificate = false;
   let detailChapters: { id: string; name: string; sortOrder: number; lessons: { id: string; name: string; sortOrder: number }[] }[] = [];
   let enrolledCount = 0;
   let paidCount = 0;
@@ -114,6 +116,15 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
         .eq("status", "active")
         .maybeSingle();
       userEnrollmentId = myEnroll?.id ?? null;
+    }
+
+    if (userEnrollmentId) {
+      const { data: certRow } = await admin
+        .from("certificates")
+        .select("id")
+        .eq("enrollment_id", userEnrollmentId)
+        .maybeSingle();
+      enrollmentHasCertificate = Boolean(certRow);
     }
 
     if (isAdminOrOwnerView && baseCourseId) {
@@ -313,12 +324,22 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
               Đăng ký ngay
             </EnrollButton>
           ) : userEnrollmentId ? (
-            <Link
-              href={`/learn/${userEnrollmentId}`}
-              className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-6 py-2.5 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20"
-            >
-              Đã đăng ký · Vào học
-            </Link>
+            <div className="flex w-full max-w-3xl flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+              <Link
+                href={`/learn/${userEnrollmentId}`}
+                className="inline-flex shrink-0 rounded-full border border-emerald-500/50 bg-emerald-500/10 px-6 py-2.5 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20"
+              >
+                Đã đăng ký · Vào học
+              </Link>
+              {!enrollmentHasCertificate && (
+                <CancelEnrollmentButton
+                  enrollmentId={userEnrollmentId}
+                  courseName={course.name}
+                  variant="onDark"
+                  className="shrink-0"
+                />
+              )}
+            </div>
           ) : status === "sắp mở" ? (
             <span className="rounded-full border border-amber-500/50 px-6 py-2.5 text-sm font-medium text-amber-300">
               Sắp mở đăng ký
@@ -326,7 +347,7 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
           ) : null}
         </div>
 
-        {!isAdminOrOwnerView && (
+        {!isAdminOrOwnerView && !user && (
           <p className="mt-4 text-sm text-gray-500">
             Bạn cần đăng nhập để tiếp tục.
           </p>

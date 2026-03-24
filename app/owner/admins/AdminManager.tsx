@@ -21,7 +21,6 @@ type Program = { id: string; name: string; code: string | null };
 export default function AdminManager() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [currentUserId, setCurrentUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -53,7 +52,6 @@ export default function AdminManager() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Không tải được");
       setAdmins(data.admins ?? []);
-      setCurrentUserId(data.currentUserId ?? "");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Lỗi");
     } finally {

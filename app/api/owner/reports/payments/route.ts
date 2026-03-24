@@ -1,11 +1,12 @@
 /**
  * GET /api/owner/reports/payments
- * Danh sách hoạt động thanh toán (đăng ký khóa học) cho Owner báo cáo.
+ * Danh sách giao dịch thanh toán cho Owner — không lặp dòng; join enrollment, khóa, chương trình.
  */
 
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
+import { getSalePriceCents } from "../../../../../lib/course-price";
 
 async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -18,6 +19,52 @@ async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupab
   return (profile as { role?: string } | null)?.role === "owner";
 }
 
+type EnrollmentRow = {
+  id: string;
+  user_id: string;
+  regular_course_id: string;
+  payment_id: string | null;
+  enrolled_at: string | null;
+};
+
+type CourseRow = {
+  id: string;
+  name: string;
+  program_id: string | null;
+  price_cents?: number | null;
+  discount_percent?: number | null;
+};
+
+type PaymentReportRowInternal = {
+  id: string;
+  program_name: string;
+  course_name: string;
+  /** Ngày hiển thị: enrollment hoặc (khi chưa có bản ghi enrollment) ngày tạo giao dịch */
+  enrolled_at: string | null;
+  enrolled_at_display: string;
+  management_code: string;
+  student_name: string;
+  student_code: string;
+  status: string;
+  payment_status: string;
+  payment_completed_at: string | null;
+  payment_date_display: string;
+  amount_cents: number;
+  amount_display: string;
+  invoice_exported_at: string | null;
+  enrollment_only: boolean;
+  _user_id: string | null;
+  _created_at: string;
+  _course_key: string;
+  /** Có bản ghi enrollment gắn payment (khác null khi đã đăng ký qua hệ thống sau thanh toán / đã có enrollment) */
+  _enrollment_at: string | null;
+};
+
+type PaymentReportPublicRow = Omit<
+  PaymentReportRowInternal,
+  "_user_id" | "_created_at" | "_course_key" | "_enrollment_at"
+>;
+
 export async function GET() {
   const supabase = await createServerSupabaseClient();
   const isOwner = await ensureOwner(supabase);
@@ -27,10 +74,9 @@ export async function GET() {
 
   const admin = getSupabaseAdminClient();
 
-  // Lấy payments có course (qua metadata hoặc enrollment), join profiles, enrollments, regular_courses
   const { data: payments } = await admin
     .from("payments")
-    .select("id, user_id, amount_cents, status, gateway_transaction_id, invoice_exported_at, created_at, metadata")
+    .select("id, user_id, amount_cents, status, gateway_transaction_id, invoice_exported_at, created_at, updated_at, metadata")
     .order("created_at", { ascending: false })
     .limit(500);
 
@@ -38,51 +84,359 @@ export async function GET() {
     return NextResponse.json({ items: [] });
   }
 
+  const paymentIds = payments.map((p) => p.id);
+
   const userIds = [...new Set(payments.map((p) => p.user_id).filter(Boolean))] as string[];
   const { data: profiles } = await admin
     .from("profiles")
-    .select("id, full_name, email")
+    .select("id, full_name, email, student_code")
     .in("id", userIds);
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
   const { data: enrollments } = await admin
     .from("enrollments")
-    .select("id, user_id, regular_course_id, payment_id, status")
-    .in("payment_id", payments.map((p) => p.id));
+    .select("id, user_id, regular_course_id, payment_id, enrolled_at")
+    .in("payment_id", paymentIds);
 
-  const enrollmentByPayment = new Map((enrollments ?? []).map((e) => [e.payment_id, e]));
+  const byPayment = new Map<string, EnrollmentRow[]>();
+  for (const e of enrollments ?? []) {
+    if (!e.payment_id) continue;
+    const list = byPayment.get(e.payment_id) ?? [];
+    list.push(e as EnrollmentRow);
+    byPayment.set(e.payment_id, list);
+  }
 
-  const courseIds = [...new Set((enrollments ?? []).map((e) => e.regular_course_id).filter(Boolean))] as string[];
-  const { data: courses } = courseIds.length > 0
+  const courseIdsFromEn = [...new Set((enrollments ?? []).map((e) => e.regular_course_id).filter(Boolean))] as string[];
+  const metaCourseIds = payments
+    .map((p) => (p.metadata as { course_id?: string } | null)?.course_id)
+    .filter(Boolean) as string[];
+  const allCourseIds = [...new Set([...courseIdsFromEn, ...metaCourseIds])];
+
+  const { data: courses } = allCourseIds.length > 0
     ? await admin
         .from("regular_courses")
-        .select("id, name")
-        .in("id", courseIds)
+        .select("id, name, program_id, price_cents, discount_percent")
+        .in("id", allCourseIds)
+    : { data: [] as CourseRow[] };
+
+  const courseMap = new Map((courses ?? []).map((c) => [c.id, c as CourseRow]));
+
+  const programIds = [...new Set((courses ?? []).map((c) => c.program_id).filter(Boolean))] as string[];
+  const { data: programs } = programIds.length > 0
+    ? await admin.from("programs").select("id, name").in("id", programIds)
     : { data: [] as { id: string; name: string }[] };
+  const programMap = new Map((programs ?? []).map((p) => [p.id, p.name]));
 
-  const courseMap = new Map((courses ?? []).map((c) => [c.id, c]));
+  const rows: PaymentReportRowInternal[] = payments.map((p) => {
+    const ens = byPayment.get(p.id) ?? [];
+    const sorted = [...ens].sort(
+      (a, b) =>
+        new Date(a.enrolled_at ?? 0).getTime() - new Date(b.enrolled_at ?? 0).getTime()
+    );
+    const earliestEnrolled = sorted[0]?.enrolled_at ?? null;
 
-  const items = payments.map((p) => {
-    const enrollment = enrollmentByPayment.get(p.id);
-    const courseId = enrollment?.regular_course_id ?? (p.metadata as { course_id?: string } | null)?.course_id;
-    const course = courseId ? courseMap.get(courseId) : null;
+    const courseIdFromMeta = (p.metadata as { course_id?: string } | null)?.course_id;
+    const courseIdsForRow = [
+      ...new Set(
+        [
+          ...sorted.map((e) => e.regular_course_id),
+          ...(courseIdFromMeta ? [courseIdFromMeta] : []),
+        ].filter(Boolean)
+      ),
+    ] as string[];
+
+    const course_key =
+      courseIdsForRow.length > 0 ? [...courseIdsForRow].sort().join(",") : "—";
+
+    const courseNames = courseIdsForRow
+      .map((cid) => courseMap.get(cid)?.name)
+      .filter((n): n is string => Boolean(n));
+    const courseDisplay = courseNames.length ? [...new Set(courseNames)].join(", ") : "—";
+
+    const programNames = new Set<string>();
+    for (const cid of courseIdsForRow) {
+      const c = courseMap.get(cid);
+      const pid = c?.program_id;
+      if (pid) {
+        const pn = programMap.get(pid);
+        if (pn) programNames.add(pn);
+      }
+    }
+    const programDisplay = programNames.size ? [...programNames].join(", ") : "—";
+
     const profile = p.user_id ? profileMap.get(p.user_id) : null;
+    const studentCodeDisplay =
+      (profile as { student_code?: string | null } | undefined)?.student_code?.trim() || "—";
+
+    const statusRaw = (p.status as string) || "pending";
+    const statusLabel = paymentStatusLabel(statusRaw);
+
+    const paymentCompletedAt =
+      statusRaw === "completed" ? (p as { updated_at?: string }).updated_at ?? null : null;
+
+    const createdAt = (p as { created_at?: string }).created_at ?? new Date(0).toISOString();
+
+    const effectiveEnrolledAt = earliestEnrolled ?? createdAt;
 
     return {
       id: p.id,
-      course_name: course?.name ?? "—",
+      program_name: programDisplay,
+      course_name: courseDisplay,
+      enrolled_at: effectiveEnrolledAt,
+      enrolled_at_display: formatDateVi(effectiveEnrolledAt),
       management_code: p.gateway_transaction_id || p.id.slice(0, 8),
       student_name: profile?.full_name || profile?.email || "—",
-      student_code: profile?.email ?? p.user_id?.slice(0, 8) ?? "—",
-      status: p.status === "completed" ? "Đã thanh toán" : enrollment ? "Đã đăng ký" : p.status === "pending" ? "Chờ thanh toán" : p.status,
+      student_code: studentCodeDisplay,
+      status: statusLabel,
+      payment_status: statusRaw,
+      payment_completed_at: paymentCompletedAt,
+      payment_date_display: paymentCompletedAt ? formatDateVi(paymentCompletedAt) : "—",
       amount_cents: p.amount_cents,
       amount_display: formatVnd(Number(p.amount_cents)),
       invoice_exported_at: p.invoice_exported_at,
+      enrollment_only: false,
+      _user_id: p.user_id ?? null,
+      _created_at: createdAt,
+      _course_key: course_key,
+      _enrollment_at: earliestEnrolled,
     };
   });
 
+  const paymentItems = dedupePaymentRows(rows);
+
+  const { data: enrollmentsWithoutPayment } = await admin
+    .from("enrollments")
+    .select("id, user_id, regular_course_id, enrolled_at, status")
+    .is("payment_id", null)
+    .eq("status", "active")
+    .order("enrolled_at", { ascending: false })
+    .limit(500);
+
+  const enrollmentOnlyRows = await buildEnrollmentWithoutPaymentRows(
+    admin,
+    enrollmentsWithoutPayment ?? [],
+    profileMap,
+    courseMap,
+    programMap
+  );
+
+  const items = mergeAndSortReportRows(paymentItems, enrollmentOnlyRows);
+
   return NextResponse.json({ items });
+}
+
+/**
+ * Gộp các giao dịch trùng (cùng học viên + cùng khóa): nhiều lần tạo checkout chờ sẽ chỉ hiện một dòng.
+ * Không gộp khi thiếu user_id (mỗi giao dịch một dòng).
+ * Ưu tiên: đã thanh toán > chờ > các trạng thái khác; cùng mức → bản đã có enrollment > bản tạo mới nhất.
+ */
+function dedupePaymentRows(rows: PaymentReportRowInternal[]): PaymentReportPublicRow[] {
+  const keyOf = (r: PaymentReportRowInternal) =>
+    r._user_id != null ? `${r._user_id}|${r._course_key}` : r.id;
+
+  const best = new Map<string, PaymentReportRowInternal>();
+  for (const r of rows) {
+    const k = keyOf(r);
+    const prev = best.get(k);
+    if (!prev) {
+      best.set(k, r);
+      continue;
+    }
+    best.set(k, pickBetterPaymentRow(prev, r));
+  }
+
+  const list = [...best.values()].sort(
+    (a, b) => new Date(b._created_at).getTime() - new Date(a._created_at).getTime()
+  );
+
+  return list.map((row) => {
+    const { _user_id, _created_at, _course_key, _enrollment_at, ...pub } = row;
+    void _user_id;
+    void _created_at;
+    void _course_key;
+    void _enrollment_at;
+    return pub;
+  });
+}
+
+function pickBetterPaymentRow(a: PaymentReportRowInternal, b: PaymentReportRowInternal): PaymentReportRowInternal {
+  const ra = paymentStatusRank(a.payment_status);
+  const rb = paymentStatusRank(b.payment_status);
+  if (rb !== ra) return rb > ra ? b : a;
+  const aHas = a._enrollment_at != null;
+  const bHas = b._enrollment_at != null;
+  if (aHas !== bHas) return aHas ? a : b;
+  const ta = new Date(a._created_at).getTime();
+  const tb = new Date(b._created_at).getTime();
+  return tb >= ta ? b : a;
+}
+
+/**
+ * Enrollment chưa gắn payment: khóa thật sự miễn phí (giá sau giảm = 0) vs khóa trả phí (đăng ký trước / chờ thanh toán).
+ * Cùng logic `resolveEnrollmentPaymentAccess` trong lib/enrollment-payment-status.ts
+ */
+async function buildEnrollmentWithoutPaymentRows(
+  admin: ReturnType<typeof getSupabaseAdminClient>,
+  enrollmentsNoPayment: {
+    id: string;
+    user_id: string;
+    regular_course_id: string;
+    enrolled_at: string | null;
+    status: string;
+  }[],
+  profileMap: Map<
+    string,
+    { id: string; full_name?: string | null; email?: string | null; student_code?: string | null }
+  >,
+  courseMap: Map<string, CourseRow>,
+  programMap: Map<string, string>
+): Promise<PaymentReportPublicRow[]> {
+  if (!enrollmentsNoPayment.length) return [];
+
+  const courseIds = [...new Set(enrollmentsNoPayment.map((e) => e.regular_course_id).filter(Boolean))] as string[];
+  if (courseIds.length) {
+    const { data: pricedCourses } = await admin
+      .from("regular_courses")
+      .select("id, name, program_id, price_cents, discount_percent")
+      .in("id", courseIds);
+    for (const c of pricedCourses ?? []) {
+      courseMap.set(c.id, c as CourseRow);
+    }
+    const pids = [...new Set((pricedCourses ?? []).map((c) => c.program_id).filter(Boolean))] as string[];
+    const missingPids = pids.filter((pid) => !programMap.has(pid));
+    if (missingPids.length) {
+      const { data: morePrograms } = await admin.from("programs").select("id, name").in("id", missingPids);
+      for (const p of morePrograms ?? []) {
+        programMap.set(p.id, p.name);
+      }
+    }
+  }
+
+  const userIds = [...new Set(enrollmentsNoPayment.map((e) => e.user_id))];
+  const missingUserIds = userIds.filter((uid) => !profileMap.has(uid));
+  if (missingUserIds.length) {
+    const { data: moreProfiles } = await admin
+      .from("profiles")
+      .select("id, full_name, email, student_code")
+      .in("id", missingUserIds);
+    for (const pr of moreProfiles ?? []) {
+      profileMap.set(pr.id, pr);
+    }
+  }
+
+  return enrollmentsNoPayment.map((e) => {
+    const course = courseMap.get(e.regular_course_id);
+    const courseDisplay = course?.name ?? "—";
+    const pid = course?.program_id;
+    const programDisplay = pid ? programMap.get(pid) ?? "—" : "—";
+    const profile = profileMap.get(e.user_id);
+    const studentCode =
+      (profile as { student_code?: string | null } | undefined)?.student_code?.trim() || "—";
+    const enrolledAt = e.enrolled_at ?? new Date(0).toISOString();
+
+    const priceCents = Number(course?.price_cents) || 0;
+    const discountPercent = course?.discount_percent ?? null;
+    const saleCents = getSalePriceCents(priceCents, discountPercent);
+    const isFreeCourse = saleCents <= 0;
+
+    if (isFreeCourse) {
+      return {
+        id: e.id,
+        program_name: programDisplay,
+        course_name: courseDisplay,
+        enrolled_at: enrolledAt,
+        enrolled_at_display: formatDateVi(enrolledAt),
+        management_code: `EN-${e.id.slice(0, 8)}`,
+        student_name: profile?.full_name || profile?.email || "—",
+        student_code: studentCode,
+        status: "Đăng ký miễn phí",
+        payment_status: "free",
+        payment_completed_at: null,
+        payment_date_display: "—",
+        amount_cents: 0,
+        amount_display: "Miễn phí",
+        invoice_exported_at: null,
+        enrollment_only: true,
+      };
+    }
+
+    return {
+      id: e.id,
+      program_name: programDisplay,
+      course_name: courseDisplay,
+      enrolled_at: enrolledAt,
+      enrolled_at_display: formatDateVi(enrolledAt),
+      management_code: `EN-${e.id.slice(0, 8)}`,
+      student_name: profile?.full_name || profile?.email || "—",
+      student_code: studentCode,
+      status: paymentStatusLabel("pending"),
+      payment_status: "pending",
+      payment_completed_at: null,
+      payment_date_display: "—",
+      amount_cents: saleCents,
+      amount_display: formatVnd(saleCents),
+      invoice_exported_at: null,
+      enrollment_only: true,
+    };
+  });
+}
+
+function mergeAndSortReportRows(
+  paymentItems: PaymentReportPublicRow[],
+  enrollmentRows: PaymentReportPublicRow[]
+): PaymentReportPublicRow[] {
+  return [...paymentItems, ...enrollmentRows].sort(
+    (a, b) =>
+      new Date(b.enrolled_at ?? 0).getTime() - new Date(a.enrolled_at ?? 0).getTime()
+  );
+}
+
+function paymentStatusRank(s: string): number {
+  switch (s) {
+    case "completed":
+      return 5;
+    case "pending":
+      return 4;
+    case "failed":
+      return 3;
+    case "refunded":
+      return 2;
+    case "cancelled":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function formatDateVi(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function paymentStatusLabel(status: string): string {
+  switch (status) {
+    case "completed":
+      return "Đã thanh toán";
+    case "pending":
+      return "Chờ thanh toán";
+    case "failed":
+      return "Thanh toán thất bại";
+    case "refunded":
+      return "Đã hoàn tiền";
+    case "cancelled":
+      return "Đã hủy";
+    default:
+      return status || "—";
+  }
 }
 
 function formatVnd(cents: number): string {

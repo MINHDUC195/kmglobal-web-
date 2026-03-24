@@ -21,7 +21,13 @@ export function validateOrigin(request: NextRequest): boolean {
   const referer = request.headers.get("referer");
   const allowed = getAllowedOrigin();
 
-  if (!allowed) return true; // No base URL configured, skip check
+  // Production: bắt buộc cấu hình NEXT_PUBLIC_SITE_URL / NEXT_PUBLIC_APP_URL — không thì CSRF coi như tắt.
+  if (!allowed) {
+    if (process.env.NODE_ENV === "production") {
+      return false;
+    }
+    return true;
+  }
 
   // Origin takes precedence - must match if present
   if (origin) {
