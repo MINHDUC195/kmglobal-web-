@@ -63,7 +63,24 @@ type PaymentReportRowInternal = {
 type PaymentReportPublicRow = Omit<
   PaymentReportRowInternal,
   "_user_id" | "_created_at" | "_course_key" | "_enrollment_at"
->;
+> & {
+  /** Có dấu mốc xuất hóa đơn ở giao dịch chưa completed (dữ liệu lệch cần rà soát) */
+  invoice_export_inconsistent: boolean;
+};
+
+type InvoiceState =
+  | "not_applicable"
+  | "not_eligible"
+  | "pending_export"
+  | "exported"
+  | "needs_review";
+
+type PaymentReportResponseRow = PaymentReportPublicRow & {
+  invoice_state: InvoiceState;
+  invoice_status_label: string;
+  invoice_action_label: string;
+  can_export_invoice: boolean;
+};
 
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -221,7 +238,9 @@ export async function GET() {
     programMap
   );
 
-  const items = mergeAndSortReportRows(paymentItems, enrollmentOnlyRows);
+  const items = mergeAndSortReportRows(paymentItems, enrollmentOnlyRows).map(
+    attachInvoiceMeta
+  );
 
   return NextResponse.json({ items });
 }
@@ -235,29 +254,46 @@ function dedupePaymentRows(rows: PaymentReportRowInternal[]): PaymentReportPubli
   const keyOf = (r: PaymentReportRowInternal) =>
     r._user_id != null ? `${r._user_id}|${r._course_key}` : r.id;
 
-  const best = new Map<string, PaymentReportRowInternal>();
+  const grouped = new Map<string, PaymentReportRowInternal[]>();
   for (const r of rows) {
     const k = keyOf(r);
-    const prev = best.get(k);
-    if (!prev) {
-      best.set(k, r);
-      continue;
-    }
-    best.set(k, pickBetterPaymentRow(prev, r));
+    const list = grouped.get(k) ?? [];
+    list.push(r);
+    grouped.set(k, list);
   }
 
-  const list = [...best.values()].sort(
-    (a, b) => new Date(b._created_at).getTime() - new Date(a._created_at).getTime()
-  );
+  const list = [...grouped.values()]
+    .map((group) => {
+      const best = group.reduce((currentBest, row) =>
+        pickBetterPaymentRow(currentBest, row)
+      );
+      const {
+        completedExportedAt,
+        hasInconsistentExport,
+      } = summarizeInvoiceExportState(group);
+      const {
+        _user_id,
+        _created_at,
+        _course_key,
+        _enrollment_at,
+        ...pub
+      } = best;
+      void _user_id;
+      void _created_at;
+      void _course_key;
+      void _enrollment_at;
+      return {
+        ...pub,
+        invoice_exported_at: completedExportedAt,
+        invoice_export_inconsistent: hasInconsistentExport,
+      };
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.enrolled_at ?? 0).getTime() - new Date(a.enrolled_at ?? 0).getTime()
+    );
 
-  return list.map((row) => {
-    const { _user_id, _created_at, _course_key, _enrollment_at, ...pub } = row;
-    void _user_id;
-    void _created_at;
-    void _course_key;
-    void _enrollment_at;
-    return pub;
-  });
+  return list;
 }
 
 function pickBetterPaymentRow(a: PaymentReportRowInternal, b: PaymentReportRowInternal): PaymentReportRowInternal {
@@ -270,6 +306,22 @@ function pickBetterPaymentRow(a: PaymentReportRowInternal, b: PaymentReportRowIn
   const ta = new Date(a._created_at).getTime();
   const tb = new Date(b._created_at).getTime();
   return tb >= ta ? b : a;
+}
+
+function summarizeInvoiceExportState(
+  rows: PaymentReportRowInternal[]
+): { completedExportedAt: string | null; hasInconsistentExport: boolean } {
+  const completedExports = rows
+    .filter((row) => row.payment_status === "completed" && row.invoice_exported_at)
+    .map((row) => row.invoice_exported_at as string);
+  const inconsistentExports = rows
+    .filter((row) => row.payment_status !== "completed" && row.invoice_exported_at)
+    .map((row) => row.invoice_exported_at as string);
+  return {
+    completedExportedAt:
+      completedExports.length > 0 ? latestIso(completedExports) : null,
+    hasInconsistentExport: inconsistentExports.length > 0,
+  };
 }
 
 /**
@@ -357,6 +409,7 @@ async function buildEnrollmentWithoutPaymentRows(
         amount_cents: 0,
         amount_display: "Miễn phí",
         invoice_exported_at: null,
+        invoice_export_inconsistent: false,
         enrollment_only: true,
       };
     }
@@ -377,6 +430,7 @@ async function buildEnrollmentWithoutPaymentRows(
       amount_cents: saleCents,
       amount_display: formatVnd(saleCents),
       invoice_exported_at: null,
+      invoice_export_inconsistent: false,
       enrollment_only: true,
     };
   });
@@ -390,6 +444,74 @@ function mergeAndSortReportRows(
     (a, b) =>
       new Date(b.enrolled_at ?? 0).getTime() - new Date(a.enrolled_at ?? 0).getTime()
   );
+}
+
+function attachInvoiceMeta(
+  row: PaymentReportPublicRow
+): PaymentReportResponseRow {
+  const paymentLabel = paymentStatusLabel(row.payment_status);
+  const paymentLabelLower = paymentLabel.toLowerCase();
+
+  if (row.invoice_export_inconsistent) {
+    return {
+      ...row,
+      invoice_state: "needs_review",
+      invoice_status_label:
+        "Cần rà soát — phát hiện dấu mốc xuất hóa đơn ở giao dịch chưa thanh toán hoàn tất",
+      invoice_action_label: "Cần rà soát",
+      can_export_invoice: false,
+    };
+  }
+
+  if (row.invoice_exported_at) {
+    return {
+      ...row,
+      invoice_state: "exported",
+      invoice_status_label: `Đã xuất — ${formatDateTimeVi(
+        row.invoice_exported_at
+      )}`,
+      invoice_action_label: "Đã xuất",
+      can_export_invoice: false,
+    };
+  }
+
+  if (row.enrollment_only && row.payment_status === "free") {
+    return {
+      ...row,
+      invoice_state: "not_applicable",
+      invoice_status_label: "— (không qua thanh toán)",
+      invoice_action_label: "—",
+      can_export_invoice: false,
+    };
+  }
+
+  if (row.payment_status === "completed") {
+    return {
+      ...row,
+      invoice_state: "pending_export",
+      invoice_status_label: "Chưa đánh dấu xuất",
+      invoice_action_label: "Xuất hóa đơn",
+      can_export_invoice: true,
+    };
+  }
+
+  if (row.payment_status === "pending") {
+    return {
+      ...row,
+      invoice_state: "not_eligible",
+      invoice_status_label: "Chưa đủ điều kiện (chờ thanh toán)",
+      invoice_action_label: "Chưa thanh toán",
+      can_export_invoice: false,
+    };
+  }
+
+  return {
+    ...row,
+    invoice_state: "not_eligible",
+    invoice_status_label: `Không thể xuất (${paymentLabelLower})`,
+    invoice_action_label: "Không thể xuất",
+    can_export_invoice: false,
+  };
 }
 
 function paymentStatusRank(s: string): number {
@@ -422,6 +544,21 @@ function formatDateVi(iso: string | null | undefined): string {
   }
 }
 
+function formatDateTimeVi(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+
 function paymentStatusLabel(status: string): string {
   switch (status) {
     case "completed":
@@ -446,4 +583,10 @@ function formatVnd(cents: number): string {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(cents);
+}
+
+function latestIso(values: string[]): string {
+  return [...values].sort(
+    (a, b) => new Date(b).getTime() - new Date(a).getTime()
+  )[0];
 }
