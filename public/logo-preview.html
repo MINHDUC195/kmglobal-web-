@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KM Global Academy - Xem & xuất logo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #0a1628; color: #fff; padding: 2rem; margin: 0; font-family: 'Be Vietnam Pro', sans-serif; }
+    h1 { font-size: 1.5rem; color: #D4AF37; }
+    h2 { font-size: 1rem; color: #D4AF37; margin-top: 2rem; }
+    .logo { display: inline-block; margin: 1rem 1rem 1rem 0; padding: 1rem; background: #0a1628; }
+    .hint { font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>KM Global Academy — Xem & xuất logo</h1>
+  <p class="hint">Chuột phải vào hình → "Lưu hình ảnh dưới dạng" để tải PNG.</p>
+
+  <h2>1. Logo đơn giản (icon + KM GLOBAL ACADEMY)</h2>
+  <div class="logo">
+    <img src="logo-kmglobal-academy.svg" alt="Logo" width="320" id="img1">
+  </div>
+
+  <h2>2. Logo đầy đủ (có tagline)</h2>
+  <div class="logo">
+    <img src="logo-kmglobal-academy-full.svg" alt="Logo Full" width="420" id="img2">
+  </div>
+
+  <h2>Tái tạo bằng code</h2>
+  <pre style="background:#1e293b;padding:1rem;border-radius:0.5rem;overflow-x:auto;font-size:0.85rem;">
+npm run generate:logo-png   # Tạo PNG
+npm run generate:logo-ico   # Tạo ICO (favicon)
+  </pre>
+</body>
+</html>

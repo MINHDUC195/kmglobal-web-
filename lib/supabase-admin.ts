@@ -1,0 +1,15 @@
+/**
+ * Supabase Admin client - uses service_role key, bypasses RLS
+ * CHỈ dùng server-side cho: chấm bài, seed, operations cần quyền cao
+ */
+
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+export function getSupabaseAdminClient() {
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}

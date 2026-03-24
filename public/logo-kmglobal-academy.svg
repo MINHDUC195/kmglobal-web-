@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="320" height="80">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5e1a4"/>
+      <stop offset="50%" style="stop-color:#D4AF37"/>
+      <stop offset="100%" style="stop-color:#B8860B"/>
+    </linearGradient>
+  </defs>
+  <g>
+    <!-- Icon container: squircle with golden border -->
+    <rect x="4" y="8" width="64" height="64" rx="14" ry="14"
+      fill="#2C313B" stroke="#D4AF37" stroke-width="1.5" stroke-opacity="0.5"/>
+    <!-- Logo icon (crown) - golden gradient -->
+    <g transform="translate(36, 24)" fill="url(#gold)">
+      <path d="M0 32 L8 16 L16 24 L24 16 L32 32 L28 32 L28 40 L4 40 L4 32 Z"/>
+      <path d="M4 12 L8 20 L12 12 L16 20 L20 12 L24 20 L28 12" fill="none" stroke="url(#gold)" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <!-- Text: KM GLOBAL -->
+    <text x="88" y="38" font-family="'Be Vietnam Pro', system-ui, sans-serif" font-size="22" font-weight="700" fill="#ffffff" letter-spacing="0.12em">KM GLOBAL</text>
+    <!-- Text: ACADEMY -->
+    <text x="88" y="58" font-family="'Be Vietnam Pro', system-ui, sans-serif" font-size="12" font-weight="600" fill="#ffffff" letter-spacing="0.2em" opacity="0.95">ACADEMY</text>
+  </g>
+</svg>
