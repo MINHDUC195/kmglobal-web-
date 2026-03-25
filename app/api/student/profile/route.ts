@@ -1,6 +1,6 @@
 /**
  * PATCH /api/student/profile
- * Cập nhật thông tin hồ sơ học viên (chỉ các trường được phép).
+ * Cập nhật thông tin hồ sơ học viên (địa chỉ chi tiết, SĐT, …).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,6 +8,8 @@ import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { validateOrigin } from "../../../../lib/csrf";
 import { checkRateLimit } from "../../../../lib/rate-limit";
+import { studentProfileNeedsCompletion } from "../../../../lib/student-profile-completion";
+import { STUDENT_PROFILE_COMPLETION_SELECT } from "../../../../lib/student-profile-api-guard";
 
 export async function PATCH(request: NextRequest) {
   if (!validateOrigin(request)) {
@@ -15,22 +17,24 @@ export async function PATCH(request: NextRequest) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   }
 
   const rl = await checkRateLimit(`student-profile-patch:${user.id}`, 30, 60_000);
   if (!rl.ok) {
-    return NextResponse.json(
-      { error: "Quá nhiều yêu cầu. Thử lại sau." },
-      { status: 429 }
-    );
+    return NextResponse.json({ error: "Quá nhiều yêu cầu. Thử lại sau." }, { status: 429 });
   }
 
   let body: {
     fullName?: string;
     address?: string;
+    addressStreetDetail?: string;
+    addressWard?: string;
+    addressProvince?: string;
     company?: string;
     phone?: string;
     gender?: string;
@@ -43,28 +47,58 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {};
   if (body.fullName !== undefined) updates.full_name = body.fullName?.trim() || null;
-  if (body.address !== undefined) updates.address = body.address?.trim() || null;
   if (body.company !== undefined) updates.company = body.company?.trim() || null;
-  if (body.phone !== undefined) updates.phone = body.phone?.trim() || null;
+  if (body.phone !== undefined) {
+    updates.phone = body.phone?.trim() || null;
+  }
   if (body.gender !== undefined) {
     const g = body.gender?.trim();
     updates.gender = ["male", "female", "other"].includes(g || "") ? g : null;
   }
 
+  if (body.addressStreetDetail !== undefined) {
+    updates.address_street_name = body.addressStreetDetail?.trim() || null;
+  }
+  if (body.addressWard !== undefined) {
+    updates.address_ward = body.addressWard?.trim() || null;
+  }
+  if (body.addressProvince !== undefined) {
+    updates.address_province = body.addressProvince?.trim() || null;
+  }
+
+  if (body.address !== undefined) {
+    updates.address = body.address?.trim() || null;
+  }
+
   if (Object.keys(updates).length === 0) {
-    return NextResponse.json({ ok: true });
+    const admin = getSupabaseAdminClient();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select(STUDENT_PROFILE_COMPLETION_SELECT)
+      .eq("id", user.id)
+      .single();
+    return NextResponse.json({
+      ok: true,
+      profileComplete: !studentProfileNeedsCompletion(profile),
+    });
   }
 
   const admin = getSupabaseAdminClient();
-  const { error } = await admin
-    .from("profiles")
-    .update(updates)
-    .eq("id", user.id);
+  const { error } = await admin.from("profiles").update(updates).eq("id", user.id);
 
   if (error) {
     console.error("Profile update error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  const { data: profile } = await admin
+    .from("profiles")
+    .select(STUDENT_PROFILE_COMPLETION_SELECT)
+    .eq("id", user.id)
+    .single();
+
+  return NextResponse.json({
+    ok: true,
+    profileComplete: !studentProfileNeedsCompletion(profile),
+  });
 }

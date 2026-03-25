@@ -7,20 +7,26 @@ type Props = {
   initial: {
     fullName: string;
     email: string;
-    address: string;
+    addressStreetDetail: string;
+    addressWard: string;
+    addressProvince: string;
     company: string;
     phone: string;
     gender: "" | "male" | "female" | "other";
     avatarUrl: string;
     studentCode: string;
+    profileCompletionRequired: boolean;
   };
+  redirectTo: string | null;
 };
 
-export default function StudentProfileForm({ initial }: Props) {
+export default function StudentProfileForm({ initial, redirectTo }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fullName, setFullName] = useState(initial.fullName);
-  const [address, setAddress] = useState(initial.address);
+  const [addressStreetDetail, setAddressStreetDetail] = useState(initial.addressStreetDetail);
+  const [addressWard, setAddressWard] = useState(initial.addressWard);
+  const [addressProvince, setAddressProvince] = useState(initial.addressProvince);
   const [company, setCompany] = useState(initial.company);
   const [phone, setPhone] = useState(initial.phone);
   const [gender, setGender] = useState<"" | "male" | "female" | "other">(initial.gender);
@@ -35,22 +41,42 @@ export default function StudentProfileForm({ initial }: Props) {
     setSubmitting(true);
     setError("");
     setSuccess(false);
+
+    if (initial.profileCompletionRequired) {
+      if (!fullName.trim()) {
+        setError("Vui lòng nhập họ và tên.");
+        setSubmitting(false);
+        return;
+      }
+      if (!phone.trim()) {
+        setError("Vui lòng nhập số điện thoại.");
+        setSubmitting(false);
+        return;
+      }
+    }
+
     try {
       const res = await fetch("/api/student/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fullName: fullName.trim(),
-          address: address.trim(),
+          addressStreetDetail: addressStreetDetail.trim() || undefined,
+          addressWard: addressWard.trim() || undefined,
+          addressProvince: addressProvince.trim() || undefined,
           company: company.trim(),
           phone: phone.trim(),
           gender: gender || null,
         }),
       });
-      const data = await res.json();
-      if (res.ok) {
+      const data = (await res.json()) as { ok?: boolean; profileComplete?: boolean; error?: string };
+      if (res.ok && data.ok) {
         setSuccess(true);
-        router.refresh();
+        if (data.profileComplete && redirectTo) {
+          router.push(redirectTo);
+        } else {
+          router.refresh();
+        }
       } else {
         setError(data.error || "Không thể cập nhật.");
       }
@@ -91,17 +117,13 @@ export default function StudentProfileForm({ initial }: Props) {
     <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border border-white/10 bg-white/5 p-6">
       {initial.studentCode ? (
         <div className="rounded-lg border border-[#D4AF37]/30 bg-[#0b1323]/80 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-            Mã học viên
-          </p>
-          <p className="mt-1 font-mono text-lg font-semibold text-[#D4AF37]">
-            {initial.studentCode}
-          </p>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Mã học viên</p>
+          <p className="mt-1 font-mono text-lg font-semibold text-[#D4AF37]">{initial.studentCode}</p>
         </div>
       ) : (
         <p className="text-sm text-gray-500">
-          Mã học viên sẽ được cấp tự động theo định dạng 440311 (ví dụ: 440311-A000068 — chữ cái
-          và 6 chữ số tăng dần).
+          Mã học viên sẽ được cấp tự động theo định dạng 440311 (ví dụ: 440311-A000068 — chữ cái và 6 chữ số
+          tăng dần).
         </p>
       )}
 
@@ -109,15 +131,9 @@ export default function StudentProfileForm({ initial }: Props) {
         <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-[#D4AF37]/50 bg-[#0b1323]">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- URL động từ Supabase Storage
-            <img
-              src={avatarUrl}
-              alt="Ảnh đại diện"
-              className="h-full w-full object-cover"
-            />
+            <img src={avatarUrl} alt="Ảnh đại diện" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-3xl text-gray-600">
-              HV
-            </div>
+            <div className="flex h-full w-full items-center justify-center text-3xl text-gray-600">HV</div>
           )}
         </div>
         <div className="flex flex-1 flex-col gap-2">
@@ -146,7 +162,9 @@ export default function StudentProfileForm({ initial }: Props) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-300">Họ và tên</label>
+        <label className="block text-sm font-medium text-gray-300">
+          Họ và tên{initial.profileCompletionRequired ? " *" : ""}
+        </label>
         <input
           type="text"
           value={fullName}
@@ -162,42 +180,81 @@ export default function StudentProfileForm({ initial }: Props) {
           value={initial.email}
           readOnly
           className="mt-1 w-full cursor-not-allowed rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-gray-400"
-          placeholder="email@example.com"
           title="Email không thể thay đổi"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300">Điện thoại</label>
+        <label className="block text-sm font-medium text-gray-300">
+          Điện thoại{initial.profileCompletionRequired ? " *" : ""}
+        </label>
         <input
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           className="mt-1 w-full rounded-lg border border-white/15 bg-[#0b1323] px-4 py-2.5 text-white outline-none focus:border-[#D4AF37]"
-          placeholder="Số điện thoại"
+          placeholder="Số điện thoại liên hệ"
+          required={initial.profileCompletionRequired}
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300">Công ty / Tổ chức</label>
+        <label className="block text-sm font-medium text-gray-300">
+          Công ty / Tổ chức <span className="font-normal text-gray-500">(tùy chọn)</span>
+        </label>
         <input
           type="text"
           value={company}
           onChange={(e) => setCompany(e.target.value)}
           className="mt-1 w-full rounded-lg border border-white/15 bg-[#0b1323] px-4 py-2.5 text-white outline-none focus:border-[#D4AF37]"
-          placeholder="Tên công ty"
+          placeholder="Tên công ty hoặc đơn vị"
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300">Địa chỉ</label>
-        <textarea
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          rows={3}
-          className="mt-1 w-full rounded-lg border border-white/15 bg-[#0b1323] px-4 py-2.5 text-white outline-none focus:border-[#D4AF37]"
-          placeholder="Địa chỉ"
-        />
+
+      <div className="border-t border-white/10 pt-4">
+        <p className="mb-3 text-sm font-medium text-[#D4AF37]">Địa chỉ</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300">
+              Số nhà, tên đường <span className="font-normal text-gray-500">(tùy chọn)</span>
+            </label>
+            <input
+              type="text"
+              value={addressStreetDetail}
+              onChange={(e) => setAddressStreetDetail(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-[#0b1323] px-4 py-2.5 text-white outline-none focus:border-[#D4AF37]"
+              placeholder="Ví dụ: 12 Nguyễn Huệ"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300">
+              Phường / Xã <span className="font-normal text-gray-500">(tùy chọn)</span>
+            </label>
+            <input
+              type="text"
+              value={addressWard}
+              onChange={(e) => setAddressWard(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-[#0b1323] px-4 py-2.5 text-white outline-none focus:border-[#D4AF37]"
+              placeholder="Phường / xã"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300">
+              Tỉnh / Thành phố <span className="font-normal text-gray-500">(tùy chọn)</span>
+            </label>
+            <input
+              type="text"
+              value={addressProvince}
+              onChange={(e) => setAddressProvince(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-[#0b1323] px-4 py-2.5 text-white outline-none focus:border-[#D4AF37]"
+              placeholder="Tỉnh hoặc thành phố trực thuộc TW"
+            />
+          </div>
+        </div>
       </div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-300">Giới tính</label>
+        <label className="block text-sm font-medium text-gray-300">
+          Giới tính <span className="font-normal text-gray-500">(tùy chọn)</span>
+        </label>
         <select
           value={gender}
           onChange={(e) => setGender((e.target.value || "") as "" | "male" | "female" | "other")}
@@ -217,7 +274,8 @@ export default function StudentProfileForm({ initial }: Props) {
       )}
       {success && (
         <p className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
-          Cập nhật thành công.
+          Cập nhật thành công
+          {redirectTo ? " — đang chuyển hướng..." : "."}
         </p>
       )}
 

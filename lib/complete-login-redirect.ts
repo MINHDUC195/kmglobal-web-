@@ -40,7 +40,7 @@ export async function completeLoginRedirect(
   const { data: profileData } = await supabase
     .from("profiles")
     .select(
-      "security_signed, role, full_name, address_street_number, address_street_name, address_ward, phone, phone_verified_at, data_sharing_consent_at"
+      "security_signed, role, full_name, address_street_number, address_street_name, address_ward, phone, data_sharing_consent_at"
     )
     .eq("id", userId)
     .single();
@@ -52,7 +52,6 @@ export async function completeLoginRedirect(
         address_street_name?: string | null;
         address_ward?: string | null;
         phone?: string | null;
-        phone_verified_at?: string | null;
         data_sharing_consent_at?: string | null;
       })
     | null;

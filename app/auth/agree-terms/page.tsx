@@ -15,8 +15,6 @@ function AgreeTermsContent() {
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
-  const [acceptedThirdPartyData, setAcceptedThirdPartyData] = useState(false);
-  const [providerHint, setProviderHint] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [policyModal, setPolicyModal] = useState<"terms" | "privacy" | null>(null);
@@ -27,20 +25,15 @@ function AgreeTermsContent() {
       if (!user) {
         const returnTo = `/auth/agree-terms?to=${encodeURIComponent(safeTo)}`;
         window.location.href = `/login?reason=not-authenticated&to=${encodeURIComponent(returnTo)}`;
-        return;
       }
-      const provider = user?.app_metadata?.provider;
-      if (provider === "google") setProviderHint("Google");
-      else if (provider === "apple") setProviderHint("Apple");
-      else if (provider === "azure") setProviderHint("Microsoft");
     });
   }, [safeTo]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrorMessage("");
-    if (!acceptedTerms || !acceptedPrivacy || !acceptedThirdPartyData) {
-      setErrorMessage("Vui lòng tích đủ 3 mục xác nhận để tiếp tục.");
+    if (!acceptedTerms || !acceptedPrivacy) {
+      setErrorMessage("Vui lòng tích đủ hai mục: Điều khoản và Chính sách bảo mật.");
       return;
     }
 
@@ -52,7 +45,6 @@ function AgreeTermsContent() {
         body: JSON.stringify({
           acceptedTerms,
           acceptedPrivacy,
-          acceptedThirdPartyData,
         }),
       });
       const data = await res.json();
@@ -92,13 +84,8 @@ function AgreeTermsContent() {
           Xác nhận trước khi tiếp tục
         </h1>
         <p className="mt-3 text-sm text-gray-300">
-          Để tiếp tục sử dụng hệ thống, vui lòng xác nhận đầy đủ Điều khoản, Chính sách bảo mật và đồng ý xử lý dữ liệu.
+          Để tiếp tục sử dụng hệ thống, vui lòng xác nhận đã đọc và đồng ý với Điều khoản sử dụng và Chính sách bảo mật.
         </p>
-        {providerHint && (
-          <p className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-            Bạn đang đăng nhập bằng tài khoản bên thứ ba: <strong>{providerHint}</strong>.
-          </p>
-        )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
@@ -141,18 +128,6 @@ function AgreeTermsContent() {
             </span>
           </label>
 
-          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
-            <input
-              type="checkbox"
-              checked={acceptedThirdPartyData}
-              onChange={(e) => setAcceptedThirdPartyData(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
-            />
-            <span>
-              Tôi đồng ý để KM Global Academy nhận và xử lý các thông tin cần thiết từ tài khoản bên thứ ba (Google / Apple / Microsoft), bao gồm email và dữ liệu liên hệ cơ bản phục vụ học tập, đăng ký khóa học và chăm sóc học viên; phù hợp quy định pháp luật Việt Nam.
-            </span>
-          </label>
-
           {errorMessage && (
             <p className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
               {errorMessage}
@@ -161,7 +136,7 @@ function AgreeTermsContent() {
 
           <button
             type="submit"
-            disabled={!acceptedTerms || !acceptedPrivacy || !acceptedThirdPartyData || isSubmitting}
+            disabled={!acceptedTerms || !acceptedPrivacy || isSubmitting}
             className="w-full rounded-full bg-gradient-to-r from-[#D4AF37] to-[#B8860B] px-6 py-3 text-sm font-bold text-black shadow-[0_0_20px_rgba(212,175,55,0.35)] transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_0_30px_rgba(212,175,55,0.55)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Đang xử lý..." : "Xác nhận và tiếp tục"}

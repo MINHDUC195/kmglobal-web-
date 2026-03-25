@@ -39,11 +39,10 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as {
       acceptedTerms?: boolean;
       acceptedPrivacy?: boolean;
-      acceptedThirdPartyData?: boolean;
     };
-    if (!body.acceptedTerms || !body.acceptedPrivacy || !body.acceptedThirdPartyData) {
+    if (!body.acceptedTerms || !body.acceptedPrivacy) {
       return NextResponse.json(
-        { error: "Bạn cần xác nhận đầy đủ Điều khoản, Chính sách bảo mật và chia sẻ dữ liệu bên thứ ba." },
+        { error: "Bạn cần xác nhận Điều khoản sử dụng và Chính sách bảo mật." },
         { status: 400 }
       );
     }
@@ -54,13 +53,20 @@ export async function POST(request: NextRequest) {
       .update({
         security_signed: true,
         security_agreed_at: now,
-        data_sharing_consent_at: now,
       })
       .eq("id", user.id);
 
     if (error) {
+      console.error("[agree-terms] profiles update failed:", error.message, error.code, error.details);
+      const isDev = process.env.NODE_ENV === "development";
       return NextResponse.json(
-        { error: "Không thể cập nhật. Vui lòng thử lại." },
+        {
+          error:
+            /column .* does not exist|42703/i.test(error.message || "")
+              ? "Cơ sở dữ liệu thiếu cột cần thiết. Quản trị viên cần kiểm tra migration bảng profiles (security_signed, security_agreed_at)."
+              : "Không thể cập nhật. Vui lòng thử lại.",
+          ...(isDev && { detail: error.message }),
+        },
         { status: 500 }
       );
     }
@@ -68,14 +74,16 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await supabase
       .from("profiles")
       .select(
-        "role, full_name, address_street_number, address_street_name, address_ward, phone, phone_verified_at, data_sharing_consent_at"
+        "role, full_name, address_street_number, address_street_name, address_ward, phone, data_sharing_consent_at"
       )
       .eq("id", user.id)
       .single();
 
+    const incomplete = studentProfileNeedsCompletion(profile);
+
     return NextResponse.json({
       success: true,
-      profileIncomplete: studentProfileNeedsCompletion(profile),
+      profileIncomplete: incomplete,
     });
   } catch {
     return NextResponse.json(

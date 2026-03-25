@@ -6,14 +6,15 @@ import {
 } from "./student-profile-completion";
 
 /** Cột cần để kiểm tra hồ sơ (đồng bộ với proxy + agree-terms). */
+/** Không gồm profile_completion_required / address_province để tương thích DB chưa chạy migration 20260326120000. */
 export const STUDENT_PROFILE_COMPLETION_SELECT =
-  "role,full_name,address_street_number,address_street_name,address_ward,phone,phone_verified_at,data_sharing_consent_at";
+  "role,full_name,address_street_number,address_street_name,address_ward,phone,data_sharing_consent_at";
 
 export function jsonStudentProfileIncomplete(): NextResponse {
   return NextResponse.json(
     {
       error:
-        "Vui lòng hoàn tất hồ sơ (địa chỉ, SĐT xác thực, đồng ý chia sẻ dữ liệu) trước khi đăng ký, thanh toán hoặc học.",
+        "Vui lòng hoàn tất hồ sơ (họ tên, SĐT, đồng ý chia sẻ dữ liệu) trước khi đăng ký, thanh toán hoặc học.",
       code: "STUDENT_PROFILE_INCOMPLETE",
     },
     { status: 403 }

@@ -4,15 +4,28 @@ import StudentProfileForm from "./StudentProfileForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function StudentProfilePage() {
+type PageProps = {
+  searchParams: Promise<{ to?: string; required?: string }>;
+};
+
+export default async function StudentProfilePage({ searchParams }: PageProps) {
+  const q = await searchParams;
+  const redirectTo =
+    q.to && q.to.startsWith("/") && !q.to.startsWith("//") ? q.to : null;
+  const requiredGate = q.required === "1";
+
   const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   const admin = getSupabaseAdminClient();
   const { data: profile } = await admin
     .from("profiles")
-    .select("full_name, email, address, company, phone, gender, avatar_url, student_code")
+    .select(
+      "full_name, email, address, company, phone, gender, avatar_url, student_code, address_street_name, address_ward"
+    )
     .eq("id", user.id)
     .single();
 
@@ -25,17 +38,26 @@ export default async function StudentProfilePage() {
     gender?: string | null;
     avatar_url?: string | null;
     student_code?: string | null;
+    address_street_name?: string | null;
+    address_ward?: string | null;
   } | null;
+
+  const streetFromDb = p?.address_street_name?.trim() ?? "";
+  const legacy = p?.address?.trim() ?? "";
+  const addressStreetDetail = streetFromDb || legacy;
 
   const initial = {
     fullName: p?.full_name?.trim() ?? "",
     email: p?.email?.trim() ?? user.email ?? "",
-    address: p?.address?.trim() ?? "",
+    addressStreetDetail,
+    addressWard: p?.address_ward?.trim() ?? "",
+    addressProvince: "",
     company: p?.company?.trim() ?? "",
     phone: p?.phone?.trim() ?? "",
     gender: (p?.gender?.trim() || "") as "" | "male" | "female" | "other",
     avatarUrl: p?.avatar_url?.trim() ?? "",
     studentCode: p?.student_code?.trim() ?? "",
+    profileCompletionRequired: true,
   };
 
   return (
@@ -44,11 +66,24 @@ export default async function StudentProfilePage() {
         Hồ sơ cá nhân
       </h1>
       <p className="mt-2 text-gray-400">
-        Cập nhật thông tin của bạn. Hệ thống sử dụng thông tin này cho chứng chỉ và liên hệ.
+        Cập nhật thông tin của bạn. Hệ thống dùng cho chứng chỉ, liên hệ và tuân thủ quy định dữ liệu.
       </p>
+      {requiredGate && initial.profileCompletionRequired && (
+        <p className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          Bạn cần điền họ tên và số điện thoại; đồng ý dữ liệu đã có từ đăng ký. Địa chỉ chi tiết là tùy chọn. Sau đó bạn có thể truy cập học và thanh toán.
+        </p>
+      )}
+      {!initial.profileCompletionRequired && (
+        <p className="mt-3 rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm text-gray-300">
+          Tài khoản của bạn không thuộc diện bắt buộc cập nhật theo đợt mới — bạn có thể chỉnh sửa tùy chọn.
+        </p>
+      )}
 
       <div className="mt-8 max-w-2xl">
-        <StudentProfileForm initial={initial} />
+        <StudentProfileForm
+          initial={initial}
+          redirectTo={redirectTo}
+        />
       </div>
     </>
   );

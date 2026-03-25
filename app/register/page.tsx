@@ -206,6 +206,19 @@ export default function RegisterPage() {
   async function handleOAuth(provider: Provider) {
     setErrorMessage("");
     setSuccessMessage("");
+    if (!securitySigned || !thirdPartyConsent) {
+      setErrorMessage(
+        "Vui lòng tích đủ hai mục phía trên (Điều khoản & Chính sách bảo mật, và đồng ý xử lý thông tin khi đăng ký / đăng nhập qua bên thứ ba) trước khi tiếp tục."
+      );
+      return;
+    }
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("oauth_register_consent_pending", "1");
+      }
+    } catch {
+      /* private mode */
+    }
     setOauthBusy(provider);
     try {
       const callbackUrl = new URL("/auth/callback", window.location.origin);
@@ -243,15 +256,74 @@ export default function RegisterPage() {
           Đăng ký tài khoản
         </h1>
         <p className="mt-3 text-sm text-gray-300">
-          Bạn có thể đăng ký nhanh bằng Google, Apple, Microsoft hoặc tạo tài khoản email + mật khẩu.
+          Đăng ký bằng email hoặc qua Google / Apple / Microsoft. Với tài khoản bên thứ ba, bạn xác nhận đồng ý xử lý dữ liệu ngay tại bước đăng ký (mục thứ hai bên dưới).
         </p>
+        {securityRequired && (
+          <div className="mt-3 rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            <p className="font-medium">Bạn cần đồng ý chính sách pháp lý để sử dụng hệ thống</p>
+            <p className="mt-1 text-amber-100/90">
+              Vui lòng tích đủ các ô xác nhận phía dưới trước khi đăng ký.
+            </p>
+          </div>
+        )}
+
+        <div className="mt-6 space-y-4">
+          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={securitySigned}
+              onChange={(e) => setSecuritySigned(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
+            />
+            <span>
+              Tôi đã đọc và đồng ý với{" "}
+              <button
+                type="button"
+                onClick={() => setPolicyModal("terms")}
+                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
+              >
+                Điều khoản sử dụng
+              </button>{" "}
+              và{" "}
+              <button
+                type="button"
+                onClick={() => setPolicyModal("privacy")}
+                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
+              >
+                Chính sách bảo mật
+              </button>{" "}
+              của KM Global Academy.
+            </span>
+          </label>
+          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={thirdPartyConsent}
+              onChange={(e) => setThirdPartyConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
+            />
+            <span>
+              Tôi đồng ý để KM Global Academy xử lý thông tin liên hệ (email, số điện thoại, họ tên và dữ liệu cơ bản)
+              bao gồm thông tin nhận từ Google / Apple / Microsoft khi đăng ký hoặc đăng nhập qua bên thứ ba, theo{" "}
+              <button
+                type="button"
+                onClick={() => setPolicyModal("privacy")}
+                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
+              >
+                Chính sách bảo mật
+              </button>{" "}
+              và quy định pháp luật Việt Nam.
+            </span>
+          </label>
+        </div>
+
         <div className="mt-6 space-y-2">
           {OAUTH_PROVIDERS.map((p) => (
             <button
               key={p.provider}
               type="button"
               onClick={() => void handleOAuth(p.provider)}
-              disabled={Boolean(oauthBusy)}
+              disabled={Boolean(oauthBusy) || !securitySigned || !thirdPartyConsent}
               className="w-full rounded-full border border-white/20 bg-[#0b1323]/70 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {oauthBusy === p.provider ? "Đang chuyển hướng..." : `Đăng ký với ${p.label}`}
@@ -263,14 +335,6 @@ export default function RegisterPage() {
           Hoặc tạo tài khoản bằng email
           <span className="h-px flex-1 bg-white/10" />
         </div>
-        {securityRequired && (
-          <div className="mt-3 rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-            <p className="font-medium">Bạn cần đồng ý chính sách pháp lý để sử dụng hệ thống</p>
-            <p className="mt-1 text-amber-100/90">
-              Vui lòng <strong>tích vào ô &quot;Đồng ý Điều khoản và Chính sách bảo mật&quot;</strong> phía dưới trước khi đăng ký.
-            </p>
-          </div>
-        )}
 
         <form onSubmit={handleRegister} className="mt-6 space-y-4">
           <div>
@@ -360,56 +424,9 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
-            <input
-              type="checkbox"
-              checked={securitySigned}
-              onChange={(e) => setSecuritySigned(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
-            />
-            <span>
-              Tôi đã đọc và đồng ý với{" "}
-              <button
-                type="button"
-                onClick={() => setPolicyModal("terms")}
-                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
-              >
-                Điều khoản sử dụng
-              </button>{" "}
-              và{" "}
-              <button
-                type="button"
-                onClick={() => setPolicyModal("privacy")}
-                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
-              >
-                Chính sách bảo mật
-              </button>{" "}
-              của KM Global Academy.
-            </span>
-          </label>
-          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
-            <input
-              type="checkbox"
-              checked={thirdPartyConsent}
-              onChange={(e) => setThirdPartyConsent(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
-            />
-            <span>
-              Tôi đồng ý để KM Global Academy xử lý thông tin liên hệ (email, số điện thoại, họ tên và dữ liệu cơ bản)
-              bao gồm thông tin nhận từ Google / Apple / Microsoft (nếu đăng nhập qua bên thứ ba), theo{" "}
-              <button
-                type="button"
-                onClick={() => setPolicyModal("privacy")}
-                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
-              >
-                Chính sách bảo mật
-              </button>{" "}
-              và quy định pháp luật Việt Nam.
-            </span>
-          </label>
           {(!securitySigned || !thirdPartyConsent) && (
             <p className="rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-              Vui lòng tích đủ các xác nhận pháp lý để mở nút Đăng ký.
+              Vui lòng tích đủ các xác nhận pháp lý phía trên để mở nút Đăng ký.
             </p>
           )}
 

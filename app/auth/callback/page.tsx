@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
+import { applyPendingOAuthRegisterConsent } from "../../../lib/apply-oauth-register-consent";
 import { completeLoginRedirect } from "../../../lib/complete-login-redirect";
 import { getSupabaseBrowserClient } from "../../../lib/supabase-browser";
 
@@ -86,6 +87,7 @@ export default function AuthCallbackPage() {
             return;
           }
           window.history.replaceState(null, "", url.pathname + (redirectTo ? `?to=${encodeURIComponent(redirectTo)}` : ""));
+          await applyPendingOAuthRegisterConsent();
           await completeLoginRedirect(supabase, router, { redirectTo });
           setStatus("success");
           setMessage("Đang chuyển hướng...");
@@ -99,6 +101,7 @@ export default function AuthCallbackPage() {
 
         if (session?.user) {
           window.history.replaceState(null, "", window.location.pathname);
+          await applyPendingOAuthRegisterConsent();
           await completeLoginRedirect(supabase, router, { redirectTo });
           setStatus("success");
           setMessage("Đang chuyển hướng...");
@@ -113,6 +116,7 @@ export default function AuthCallbackPage() {
           } = await supabase.auth.getSession();
           if (retrySession?.user) {
             window.history.replaceState(null, "", window.location.pathname);
+            await applyPendingOAuthRegisterConsent();
             await completeLoginRedirect(supabase, router, { redirectTo });
             setStatus("success");
             setMessage("Đang chuyển hướng...");

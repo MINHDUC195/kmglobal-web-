@@ -47,6 +47,12 @@ Chạy migration trong Supabase SQL Editor. Nếu user đã tồn tại, chỉ c
 - **20260324120100_questions_rls_remove_student_select.sql** — Xóa policy cho phép mọi user đã đăng nhập đọc toàn bộ `questions`; đọc câu hỏi qua API server.
 - Hoặc chạy một lần: `RUN_MIGRATION_QUESTIONS_RLS_NARROW.sql` trong SQL Editor.
 
+## Cột `profiles` cho agree-terms và hồ sơ học viên
+
+- **20260325100000_profiles_consent_address_phone_verify.sql** — Thêm `data_sharing_consent_at`, `address_street_number`, `address_street_name`, `address_ward`, `phone_verified_at`. **Bắt buộc** nếu trang `/auth/agree-terms` báo không cập nhật được (thiếu cột trong DB).
+
+- **20260326120000_profile_gate_province.sql** — Thêm `address_province`, `profile_completion_required` (học viên cũ có giá trị `false`, tài khoản mới `true`; gate hồ sơ chỉ áp dụng khi `true`).
+
 ## Đăng nhập OAuth + Email
 
 Ứng dụng dùng `/auth/callback` (OAuth Google/Apple/Microsoft) và `/auth/confirm` (xác nhận email) trong luồng auth. Trong **Supabase Dashboard → Authentication → URL configuration**:
