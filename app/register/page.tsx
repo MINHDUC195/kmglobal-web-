@@ -19,8 +19,6 @@ const BLOCKED_MESSAGE =
   "Rất tiếc, hệ thống không hỗ trợ đăng ký cho các tổ chức tư vấn/chứng nhận quản lý chất lượng.";
 const OAUTH_PROVIDERS: { provider: Provider; label: string }[] = [
   { provider: "google", label: "Google (Gmail)" },
-  { provider: "apple", label: "Apple" },
-  { provider: "azure", label: "Microsoft" },
 ];
 
 function isCompetitorEmail(email: string) {

@@ -113,29 +113,40 @@ export async function GET(request: Request) {
   if (statusFilter) {
     paymentsQuery = paymentsQuery.eq("status", statusFilter);
   }
-  const { data: payments } = await paymentsQuery;
-
-  if (!payments || payments.length === 0) {
-    return NextResponse.json({
-      items: [],
-      meta: { total: 0, limit, offset, hasMore: false },
-    });
-  }
-
+  const { data: paymentsRaw } = await paymentsQuery;
+  const payments = paymentsRaw ?? [];
   const paymentIds = payments.map((p) => p.id);
 
-  const userIds = [...new Set(payments.map((p) => p.user_id).filter(Boolean))] as string[];
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("id, full_name, email, student_code")
-    .in("id", userIds);
+  const profileMap = new Map<
+    string,
+    { id: string; full_name?: string | null; email?: string | null; student_code?: string | null }
+  >();
+  let enrollments: {
+    id: string;
+    user_id: string;
+    regular_course_id: string;
+    payment_id: string | null;
+    enrolled_at: string | null;
+  }[] = [];
 
-  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+  if (paymentIds.length > 0) {
+    const userIds = [...new Set(payments.map((p) => p.user_id).filter(Boolean))] as string[];
+    if (userIds.length > 0) {
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, full_name, email, student_code")
+        .in("id", userIds);
+      for (const p of profiles ?? []) {
+        profileMap.set(p.id, p);
+      }
+    }
 
-  const { data: enrollments } = await admin
-    .from("enrollments")
-    .select("id, user_id, regular_course_id, payment_id, enrolled_at")
-    .in("payment_id", paymentIds);
+    const { data: enRows } = await admin
+      .from("enrollments")
+      .select("id, user_id, regular_course_id, payment_id, enrolled_at")
+      .in("payment_id", paymentIds);
+    enrollments = (enRows ?? []) as typeof enrollments;
+  }
 
   const byPayment = new Map<string, EnrollmentRow[]>();
   for (const e of enrollments ?? []) {

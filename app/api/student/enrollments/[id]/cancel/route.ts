@@ -139,22 +139,35 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Không thể hủy đăng ký" }, { status: 500 });
   }
 
+  let emailSent = false;
   if (cancelCount >= 3 && cancelCount < 5) {
     const { data: prof } = await admin
       .from("profiles")
       .select("email, full_name")
       .eq("id", user.id)
       .single();
-    const email = (prof as { email?: string | null } | null)?.email;
-    if (email) {
-      void sendKmgEmail({
-        to: email,
+    const profileEmail = (prof as { email?: string | null } | null)?.email?.trim();
+    const recipient = profileEmail || user.email?.trim() || "";
+    if (recipient) {
+      const { sent } = await sendKmgEmail({
+        to: recipient,
         subject: `[KM Global] Cảnh báo: hủy đăng ký lần ${cancelCount}`,
         html: cancelWarningEmailHtml(
           (prof as { full_name?: string | null })?.full_name ?? null,
           courseName,
           cancelCount
         ),
+      });
+      emailSent = sent;
+      if (!sent) {
+        console.warn("[cancel enrollment] warning email not sent (check RESEND_API_KEY / Resend domain)", {
+          cancelCount,
+          hasResendKey: Boolean(process.env.RESEND_API_KEY),
+        });
+      }
+    } else {
+      console.warn("[cancel enrollment] no email for user — cannot send cancel warning", {
+        userId: user.id,
       });
     }
   }
@@ -169,5 +182,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     warningLevel,
     learningDataCleared,
     accountLocked,
+    emailSent,
   });
 }

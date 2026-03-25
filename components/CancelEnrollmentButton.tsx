@@ -47,9 +47,13 @@ export default function CancelEnrollmentButton({
       }
 
       if (data.warningLevel === "third" || data.warningLevel === "fourth") {
-        window.alert(
-          `Đây là lần hủy thứ ${data.cancelCount ?? ""} cho khóa này. Từ lần thứ 3 hệ thống đã gửi email cảnh báo. Tối đa 5 lần; vượt quá có thể khóa tài khoản (chưa thanh toán) hoặc xóa dữ liệu học (đã thanh toán).`
-        );
+        const base =
+          `Đây là lần hủy thứ ${data.cancelCount ?? ""} cho khóa này. Từ lần thứ 3 hệ thống cố gắng gửi email cảnh báo. Tối đa 5 lần; vượt quá có thể khóa tài khoản (chưa thanh toán) hoặc xóa dữ liệu học (đã thanh toán).`;
+        const emailNote =
+          data.emailSent === false
+            ? "\n\n(Lưu ý: Email cảnh báo chưa gửi được từ máy chủ — thường do chưa cấu hình dịch vụ gửi mail trên production. Vui lòng liên hệ quản trị nếu cần.)"
+            : "";
+        window.alert(base + emailNote);
       }
 
       if (data.learningDataCleared) {

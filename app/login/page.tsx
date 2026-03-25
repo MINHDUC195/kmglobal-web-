@@ -13,8 +13,6 @@ const supabase = getSupabaseBrowserClient();
 
 const OAUTH_PROVIDERS: { provider: Provider; label: string }[] = [
   { provider: "google", label: "Google" },
-  { provider: "apple", label: "Apple" },
-  { provider: "azure", label: "Microsoft" },
 ];
 
 function LoginPageInner() {

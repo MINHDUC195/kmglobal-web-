@@ -115,9 +115,19 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Bảo vệ route /student - chỉ student (hoặc admin/owner xem thay)
+  // Bảo vệ route /student — Owner vào đúng trang dashboard học viên (/student) thì chuyển về Owner hub.
   if (pathname.startsWith("/student")) {
     if (!user) return redirectToLogin();
+    if (pathname === "/student" || pathname === "/student/") {
+      const { data: studentGateProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (studentGateProfile?.role === "owner") {
+        return NextResponse.redirect(new URL("/owner", request.url));
+      }
+    }
   }
 
   // Bảo vệ route /learn
