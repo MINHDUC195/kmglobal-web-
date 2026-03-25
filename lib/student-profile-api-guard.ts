@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "./supabase-admin";
 import {
@@ -9,18 +10,9 @@ const STUDENT_PROFILE_COMPLETION_SELECT_PRIMARY =
   "role,profile_completion_required,full_name,phone,security_signed,data_sharing_consent_at";
 const STUDENT_PROFILE_COMPLETION_SELECT_FALLBACK = "role,full_name,phone,security_signed";
 
-type SelectableProfileClient = {
-  from: (table: string) => {
-    select: (columns: string) => {
-      eq: (column: string, value: string) => {
-        single: () => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
-      };
-    };
-  };
-};
-
+/** Dùng `any` để tránh TS "Type instantiation is excessively deep" với Supabase generics. */
 export async function fetchStudentProfileCompletion(
-  client: SelectableProfileClient,
+  client: SupabaseClient<any>,
   userId: string
 ): Promise<{
   profile: StudentProfileCompletionRow;

@@ -97,7 +97,7 @@ export default function StudentProfileForm({ initial, redirectTo }: Props) {
         const willRedirect = Boolean(data.profileComplete && redirectTo);
         setRedirecting(willRedirect);
         setSuccess(true);
-        if (willRedirect) {
+        if (willRedirect && redirectTo) {
           router.push(redirectTo);
         } else {
           router.refresh();
