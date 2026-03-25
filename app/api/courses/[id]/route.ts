@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 
 export async function GET(
   request: NextRequest,
@@ -34,6 +35,9 @@ export async function GET(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const { data: course, error } = await supabase
       .from("regular_courses")

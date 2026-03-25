@@ -17,10 +17,29 @@ const playfair = Playfair_Display({
   display: "swap",
 });
 
+function metadataBaseUrl(): URL {
+  const raw =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+  try {
+    return new URL(raw);
+  } catch {
+    return new URL("http://localhost:3000");
+  }
+}
+
 export const metadata: Metadata = {
-  title: "ISO 9001 & IATF 16949 Online Training Platform | KM Global Academy",
+  metadataBase: metadataBaseUrl(),
+  title: {
+    default: "KM Global Academy",
+    template: "%s | KM Global Academy",
+  },
   description:
     "Nền tảng đào tạo tiêu chuẩn quốc tế: ISO 9001, IATF 16949, ISO 14001, ISO 45001. Đào tạo chuyên sâu bởi chuyên gia hàng đầu.",
+  appleWebApp: {
+    title: "KM Global Academy",
+  },
 };
 
 export default function RootLayout({

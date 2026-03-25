@@ -9,6 +9,7 @@ import {
 import { isCourseExpiredUncompleted } from "../../../../lib/course-expired-uncompleted";
 import { resolveEnrollmentPaymentAccess } from "../../../../lib/enrollment-payment-status";
 import { getLessonWithAccess } from "../../../../lib/lesson-access";
+import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 
 const EPS = 1e-6;
 
@@ -48,6 +49,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+  if (profileBlock) return profileBlock;
 
   const admin = getSupabaseAdminClient();
 

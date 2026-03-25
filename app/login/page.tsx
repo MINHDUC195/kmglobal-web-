@@ -3,13 +3,19 @@
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { Provider } from "@supabase/supabase-js";
 import NavLogoWithBanner from "../../components/NavLogoWithBanner";
 import { completeLoginRedirect } from "../../lib/complete-login-redirect";
+import { formatOAuthClientError } from "../../lib/oauth-error-message";
 import { getSupabaseBrowserClient } from "../../lib/supabase-browser";
 
 const supabase = getSupabaseBrowserClient();
 
-type LoginMode = "password" | "email";
+const OAUTH_PROVIDERS: { provider: Provider; label: string }[] = [
+  { provider: "google", label: "Google" },
+  { provider: "apple", label: "Apple" },
+  { provider: "azure", label: "Microsoft" },
+];
 
 function LoginPageInner() {
   const router = useRouter();
@@ -21,19 +27,11 @@ function LoginPageInner() {
     return "/";
   }, [searchParams]);
 
-  const [loginMode, setLoginMode] = useState<LoginMode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState<Provider | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-
-  const [otpEmail, setOtpEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [otpStep, setOtpStep] = useState<"request" | "verify">("request");
-  const [otpSendBusy, setOtpSendBusy] = useState(false);
-  const [otpVerifyBusy, setOtpVerifyBusy] = useState(false);
-  const [otpInfo, setOtpInfo] = useState<string | null>(null);
-  const [otpError, setOtpError] = useState<string | null>(null);
 
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -127,67 +125,25 @@ function LoginPageInner() {
     }
   }
 
-  async function handleSendOtp(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setOtpError(null);
-    setOtpInfo(null);
-    const trimmed = otpEmail.trim();
-    if (!trimmed) {
-      setOtpError("Vui lòng nhập email.");
-      return;
-    }
-    setOtpSendBusy(true);
+  async function handleOAuth(provider: Provider) {
+    setErrorMessage("");
+    setOauthBusy(provider);
     try {
       const callbackUrl = new URL("/auth/callback", window.location.origin);
       callbackUrl.searchParams.set("to", safeRedirectTo);
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email: trimmed,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: callbackUrl.toString(),
-        },
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: callbackUrl.toString() },
       });
       if (error) {
-        setOtpError(error.message);
+        setErrorMessage(formatOAuthClientError(error.message));
         return;
       }
-      setOtpStep("verify");
-      setOtpInfo(
-        "Đã gửi email. Mở link trong thư hoặc nhập mã 6 số (nếu Supabase bật OTP). Kiểm tra cả thư mục spam."
-      );
     } catch (err) {
-      setOtpError(err instanceof Error ? err.message : "Không gửi được email.");
+      const raw = err instanceof Error ? err.message : "Không thể đăng nhập với bên thứ ba.";
+      setErrorMessage(formatOAuthClientError(raw));
     } finally {
-      setOtpSendBusy(false);
-    }
-  }
-
-  async function handleVerifyOtp(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setOtpError(null);
-    const trimmedEmail = otpEmail.trim();
-    const code = otpCode.replace(/\D/g, "");
-    if (!trimmedEmail || code.length < 6) {
-      setOtpError("Nhập email và mã 6 chữ số từ email.");
-      return;
-    }
-    setOtpVerifyBusy(true);
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: trimmedEmail,
-        token: code,
-        type: "email",
-      });
-      if (error) {
-        setOtpError(error.message);
-        return;
-      }
-      await completeLoginRedirect(supabase, router, { redirectTo: safeRedirectTo });
-    } catch (err) {
-      setOtpError(err instanceof Error ? err.message : "Xác nhận thất bại.");
-    } finally {
-      setOtpVerifyBusy(false);
+      setOauthBusy(null);
     }
   }
 
@@ -206,44 +162,27 @@ function LoginPageInner() {
         <h1 className="font-[family-name:var(--font-serif)] text-3xl font-bold text-[#D4AF37]">
           Đăng nhập
         </h1>
-        <p className="mt-3 text-sm text-gray-300">
-          Truy cập hệ thống học tập bảo mật của KM Global Academy.
-        </p>
-
-        <div className="mt-6 flex rounded-xl border border-white/10 bg-[#0b1323]/80 p-1">
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode("password");
-              setOtpError(null);
-            }}
-            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
-              loginMode === "password"
-                ? "bg-[#D4AF37]/20 text-[#D4AF37]"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
-            Mật khẩu
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode("email");
-              setErrorMessage("");
-              if (otpEmail === "" && email.trim()) setOtpEmail(email.trim());
-            }}
-            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
-              loginMode === "email"
-                ? "bg-[#D4AF37]/20 text-[#D4AF37]"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
-            Email (mã / link)
-          </button>
+        <div className="mt-6 space-y-2">
+          {OAUTH_PROVIDERS.map((p) => (
+            <button
+              key={p.provider}
+              type="button"
+              onClick={() => void handleOAuth(p.provider)}
+              disabled={Boolean(oauthBusy)}
+              className="w-full rounded-full border border-white/20 bg-[#0b1323]/70 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {oauthBusy === p.provider ? "Đang chuyển hướng..." : `Tiếp tục với ${p.label}`}
+            </button>
+          ))}
         </div>
 
-        {loginMode === "password" ? (
-          <form onSubmit={handleLogin} className="mt-6 space-y-4">
+        <div className="my-5 flex items-center gap-3 text-xs text-gray-500">
+          <span className="h-px flex-1 bg-white/10" />
+          Hoặc đăng nhập bằng email
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-white/90">Email</label>
               <input
@@ -305,92 +244,7 @@ function LoginPageInner() {
             >
               {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
-          </form>
-        ) : (
-          <div className="mt-6 space-y-6">
-            {otpStep === "request" ? (
-              <form onSubmit={handleSendOtp} className="space-y-4">
-                <p className="text-xs text-gray-400">
-                  Dành cho tài khoản đã đăng ký. Bạn sẽ nhận link đăng nhập hoặc mã 6 số (tùy cấu hình Supabase).
-                </p>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-white/90">Email</label>
-                  <input
-                    type="email"
-                    value={otpEmail}
-                    onChange={(e) => setOtpEmail(e.target.value)}
-                    className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]"
-                    placeholder="name@company.com"
-                    required
-                    autoComplete="email"
-                  />
-                </div>
-                {otpError && (
-                  <p className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                    {otpError}
-                  </p>
-                )}
-                <button
-                  type="submit"
-                  disabled={otpSendBusy}
-                  className="w-full rounded-full border border-emerald-500/60 bg-emerald-500/10 px-6 py-3 text-sm font-bold text-emerald-100 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {otpSendBusy ? "Đang gửi..." : "Gửi mã / link đăng nhập"}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
-                {otpInfo && (
-                  <p className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-100">
-                    {otpInfo}
-                  </p>
-                )}
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-white/90">Mã 6 số (nếu có trong email)</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-center font-mono text-lg tracking-widest text-white outline-none transition focus:border-[#D4AF37]"
-                    placeholder="000000"
-                    maxLength={6}
-                    autoComplete="one-time-code"
-                  />
-                </div>
-                <p className="text-xs text-gray-500">
-                  Nếu email chỉ có nút/link, nhấp link — không cần nhập mã. Hoặc nhập mã rồi bấm Xác nhận.
-                </p>
-                {otpError && (
-                  <p className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                    {otpError}
-                  </p>
-                )}
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOtpStep("request");
-                      setOtpCode("");
-                      setOtpInfo(null);
-                      setOtpError(null);
-                    }}
-                    className="rounded-full border border-white/20 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5"
-                  >
-                    ← Gửi lại email
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={otpVerifyBusy}
-                    className="flex-1 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#B8860B] px-6 py-2.5 text-sm font-bold text-black disabled:opacity-60"
-                  >
-                    {otpVerifyBusy ? "Đang xác nhận..." : "Xác nhận mã"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        )}
+        </form>
 
         <p className="mt-5 text-sm text-gray-300">
           Chưa có tài khoản?{" "}

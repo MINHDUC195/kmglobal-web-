@@ -47,9 +47,9 @@ Chạy migration trong Supabase SQL Editor. Nếu user đã tồn tại, chỉ c
 - **20260324120100_questions_rls_remove_student_select.sql** — Xóa policy cho phép mọi user đã đăng nhập đọc toàn bộ `questions`; đọc câu hỏi qua API server.
 - Hoặc chạy một lần: `RUN_MIGRATION_QUESTIONS_RLS_NARROW.sql` trong SQL Editor.
 
-## Đăng nhập email (magic link / OTP)
+## Đăng nhập OAuth + Email
 
-Ứng dụng dùng `/auth/callback` sau khi user nhấp link trong email. Trong **Supabase Dashboard → Authentication → URL configuration**:
+Ứng dụng dùng `/auth/callback` (OAuth Google/Apple/Microsoft) và `/auth/confirm` (xác nhận email) trong luồng auth. Trong **Supabase Dashboard → Authentication → URL configuration**:
 
 - **Site URL:** URL production (ví dụ `https://your-domain.com`) hoặc `http://localhost:3000` khi dev.
 - **Redirect URLs:** thêm từng dòng (không thiếu đường dẫn):
@@ -58,7 +58,14 @@ Chạy migration trong Supabase SQL Editor. Nếu user đã tồn tại, chỉ c
   - `https://<domain-của-bạn>/auth/callback`
   - `https://<domain-của-bạn>/auth/confirm`
 
-Trong **Authentication → Providers → Email**: bật email; nếu dùng mã 6 số, bật **Email OTP** (hoặc tương đương theo giao diện Supabase).
+Trong **Authentication → Providers**:
+
+- **Google**: bật provider, cấu hình OAuth Client ID/Secret từ Google Cloud.
+- **Apple**: bật provider, cấu hình Service ID / Key từ Apple Developer.
+- **Azure (Microsoft)**: bật provider, cấu hình tenant/client từ Microsoft Entra ID.
+
+**Lỗi trình duyệt / JSON `Unsupported provider: provider is not enabled`:** provider tương ứng (ví dụ Google) đang **tắt** trong Dashboard — bật công tắc provider đó và lưu. Trong **Google Cloud Console** (Credentials → OAuth 2.0 Client), **Authorized redirect URIs** phải có `https://<project-ref>.supabase.co/auth/v1/callback` (đúng `project-ref` của project Supabase, không phải URL app Next.js).
+- **Email**: giữ đăng nhập email + mật khẩu; có thể bật **Confirm email** nếu cần.
 
 ## Cache catalog (Next.js)
 

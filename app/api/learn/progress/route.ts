@@ -13,6 +13,7 @@ import { cookies } from "next/headers";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { validateOrigin } from "../../../../lib/csrf";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
+import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 
 export async function GET(request: NextRequest) {
   const enrollmentId = request.nextUrl.searchParams.get("enrollmentId");
@@ -37,6 +38,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const profileBlockGet = await requireCompleteStudentProfileForApi(user.id);
+  if (profileBlockGet) return profileBlockGet;
 
   const admin = getSupabaseAdminClient();
 
@@ -122,6 +126,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlockPost = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlockPost) return profileBlockPost;
 
     const body = await request.json();
     const { lessonId, enrollmentId } = body as { lessonId?: string; enrollmentId?: string };

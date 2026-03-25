@@ -15,6 +15,7 @@ import { scoreMultipleChoiceRewardPenalty } from "../../../../../lib/quiz-multip
 import { computeOverallCoursePercent } from "../../../../../lib/course-overall-score";
 import { isCourseExpiredUncompleted } from "../../../../../lib/course-expired-uncompleted";
 import { resolveEnrollmentPaymentAccess } from "../../../../../lib/enrollment-payment-status";
+import { requireCompleteStudentProfileForApi } from "../../../../../lib/student-profile-api-guard";
 
 const EPS = 1e-6;
 
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const body = await request.json();
     const { enrollmentId, finalExamId, answers } = body;

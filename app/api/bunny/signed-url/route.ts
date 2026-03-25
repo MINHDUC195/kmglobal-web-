@@ -5,6 +5,7 @@ import { getSignedEmbedUrl } from "@/lib/bunny";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getLessonWithAccess } from "@/lib/lesson-access";
 import { checkRateLimit, rateLimitKeyFromRequest } from "@/lib/rate-limit";
+import { requireCompleteStudentProfileForApi } from "@/lib/student-profile-api-guard";
 
 /**
  * GET /api/bunny/signed-url?lessonId=...&enrollmentId=...
@@ -61,6 +62,9 @@ export async function GET(request: NextRequest) {
   if (!lessonId?.trim()) {
     return NextResponse.json({ error: "lessonId or previewVideoUrl required" }, { status: 400 });
   }
+
+  const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+  if (profileBlock) return profileBlock;
 
   const enrollmentId = request.nextUrl.searchParams.get("enrollmentId");
   const admin = getSupabaseAdminClient();

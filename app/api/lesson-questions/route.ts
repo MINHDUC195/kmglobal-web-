@@ -5,6 +5,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateLessonQuestionContent } from "@/lib/lesson-question-validation";
 import { validateOrigin } from "@/lib/csrf";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireCompleteStudentProfileForApi } from "@/lib/student-profile-api-guard";
 
 /**
  * GET /api/lesson-questions?lessonId=...&enrollmentId=...
@@ -36,6 +37,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const profileBlockGet = await requireCompleteStudentProfileForApi(user.id);
+  if (profileBlockGet) return profileBlockGet;
 
   const admin = getSupabaseAdminClient();
 
@@ -167,6 +171,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlockPost = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlockPost) return profileBlockPost;
 
     const rl = await checkRateLimit(`lesson-question-post:${user.id}`, 20, 60_000);
     if (!rl.ok) {

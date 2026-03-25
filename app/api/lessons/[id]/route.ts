@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getLessonWithAccess } from "@/lib/lesson-access";
+import { requireCompleteStudentProfileForApi } from "@/lib/student-profile-api-guard";
 
 /**
  * GET /api/lessons/[id]
@@ -39,6 +40,9 @@ export async function GET(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const admin = getSupabaseAdminClient();
     const enrollmentIdParam = request.nextUrl.searchParams.get("enrollmentId");

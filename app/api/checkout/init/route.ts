@@ -18,6 +18,7 @@ import {
   getCheckoutIdempotency,
   setCheckoutIdempotency,
 } from "../../../../lib/checkout-idempotency";
+import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 
 export const maxDuration = 60;
 
@@ -58,6 +59,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const body = await request.json();
     const { courseId, gateway, idempotencyKey } = body as {

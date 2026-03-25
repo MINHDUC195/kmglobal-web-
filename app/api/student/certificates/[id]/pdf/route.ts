@@ -5,6 +5,7 @@ import {
   generateCertificatePdf,
   type CertificateTemplateConfig,
 } from "../../../../../../lib/certificate-pdf";
+import { requireCompleteStudentProfileForApi } from "../../../../../../lib/student-profile-api-guard";
 
 export const maxDuration = 120;
 
@@ -26,6 +27,9 @@ export async function GET(_request: NextRequest, { params }: RouteProps) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const admin = getSupabaseAdminClient();
 

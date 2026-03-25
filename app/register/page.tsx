@@ -3,8 +3,10 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { Provider } from "@supabase/supabase-js";
 import NavLogoWithBanner from "../../components/NavLogoWithBanner";
 import PolicyModal from "../../components/PolicyModal";
+import { formatOAuthClientError } from "../../lib/oauth-error-message";
 import { getSupabaseBrowserClient } from "../../lib/supabase-browser";
 import { validatePasswordStrength } from "../../lib/password-policy";
 
@@ -15,6 +17,11 @@ const REGISTER_DRAFT_KEY = "kmglobal_register_draft";
 const BLOCKED_KEYWORDS = ["iso", "iatf", "certification", "advisor", "consulting"];
 const BLOCKED_MESSAGE =
   "Rất tiếc, hệ thống không hỗ trợ đăng ký cho các tổ chức tư vấn/chứng nhận quản lý chất lượng.";
+const OAUTH_PROVIDERS: { provider: Provider; label: string }[] = [
+  { provider: "google", label: "Google (Gmail)" },
+  { provider: "apple", label: "Apple" },
+  { provider: "azure", label: "Microsoft" },
+];
 
 function isCompetitorEmail(email: string) {
   const normalized = email.trim().toLowerCase();
@@ -76,7 +83,9 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState<"" | "male" | "female" | "other">("");
   const [securitySigned, setSecuritySigned] = useState(false);
+  const [thirdPartyConsent, setThirdPartyConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState<Provider | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [policyModal, setPolicyModal] = useState<"terms" | "privacy" | null>(null);
@@ -86,8 +95,9 @@ export default function RegisterPage() {
       fullName.trim().length > 1 &&
       email.trim().length > 5 &&
       validatePasswordStrength(password).ok &&
-      securitySigned,
-    [fullName, email, password, securitySigned]
+      securitySigned &&
+      thirdPartyConsent,
+    [fullName, email, password, securitySigned, thirdPartyConsent]
   );
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,10 +148,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!securitySigned) {
-      setErrorMessage(
-        "Bạn cần đồng ý Điều khoản sử dụng và Chính sách bảo mật trước khi đăng ký tài khoản."
-      );
+    if (!securitySigned || !thirdPartyConsent) {
+      setErrorMessage("Bạn cần tích đủ các xác nhận pháp lý để tiếp tục.");
       return;
     }
 
@@ -169,6 +177,7 @@ export default function RegisterPage() {
             gender: gender || undefined,
             security_signed: true,
             security_agreed_at: now,
+            data_sharing_consent_at: now,
           },
         },
       });
@@ -194,6 +203,30 @@ export default function RegisterPage() {
     }
   }
 
+  async function handleOAuth(provider: Provider) {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setOauthBusy(provider);
+    try {
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      callbackUrl.searchParams.set("to", "/student");
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: callbackUrl.toString() },
+      });
+      if (error) {
+        setErrorMessage(formatOAuthClientError(error.message));
+        return;
+      }
+    } catch (error) {
+      const raw =
+        error instanceof Error ? error.message : "Không thể đăng ký bằng tài khoản bên thứ ba.";
+      setErrorMessage(formatOAuthClientError(raw));
+    } finally {
+      setOauthBusy(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#0a1628] px-6 py-12 text-white">
       <header className="mx-auto mb-8 flex max-w-xl items-center justify-between">
@@ -210,8 +243,26 @@ export default function RegisterPage() {
           Đăng ký tài khoản
         </h1>
         <p className="mt-3 text-sm text-gray-300">
-          Tạo tài khoản học viên để truy cập hệ thống LMS KM Global Academy.
+          Bạn có thể đăng ký nhanh bằng Google, Apple, Microsoft hoặc tạo tài khoản email + mật khẩu.
         </p>
+        <div className="mt-6 space-y-2">
+          {OAUTH_PROVIDERS.map((p) => (
+            <button
+              key={p.provider}
+              type="button"
+              onClick={() => void handleOAuth(p.provider)}
+              disabled={Boolean(oauthBusy)}
+              className="w-full rounded-full border border-white/20 bg-[#0b1323]/70 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {oauthBusy === p.provider ? "Đang chuyển hướng..." : `Đăng ký với ${p.label}`}
+            </button>
+          ))}
+        </div>
+        <div className="my-5 flex items-center gap-3 text-xs text-gray-500">
+          <span className="h-px flex-1 bg-white/10" />
+          Hoặc tạo tài khoản bằng email
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
         {securityRequired && (
           <div className="mt-3 rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
             <p className="font-medium">Bạn cần đồng ý chính sách pháp lý để sử dụng hệ thống</p>
@@ -336,9 +387,29 @@ export default function RegisterPage() {
               của KM Global Academy.
             </span>
           </label>
-          {!securitySigned && (
+          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={thirdPartyConsent}
+              onChange={(e) => setThirdPartyConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
+            />
+            <span>
+              Tôi đồng ý để KM Global Academy xử lý thông tin liên hệ (email, số điện thoại, họ tên và dữ liệu cơ bản)
+              bao gồm thông tin nhận từ Google / Apple / Microsoft (nếu đăng nhập qua bên thứ ba), theo{" "}
+              <button
+                type="button"
+                onClick={() => setPolicyModal("privacy")}
+                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
+              >
+                Chính sách bảo mật
+              </button>{" "}
+              và quy định pháp luật Việt Nam.
+            </span>
+          </label>
+          {(!securitySigned || !thirdPartyConsent) && (
             <p className="rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-              Vui lòng tích chọn đồng ý chính sách pháp lý để mở nút Đăng ký.
+              Vui lòng tích đủ các xác nhận pháp lý để mở nút Đăng ký.
             </p>
           )}
 

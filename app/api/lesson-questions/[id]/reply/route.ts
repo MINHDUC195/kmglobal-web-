@@ -5,6 +5,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateLessonQuestionContent } from "@/lib/lesson-question-validation";
 import { validateOrigin } from "@/lib/csrf";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireCompleteStudentProfileForApi } from "@/lib/student-profile-api-guard";
 
 /**
  * POST /api/lesson-questions/[id]/reply
@@ -43,6 +44,9 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const rl = await checkRateLimit(`lesson-question-reply:${user.id}`, 40, 60_000);
     if (!rl.ok) {

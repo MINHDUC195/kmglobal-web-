@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProfileRow } from "../types/database";
+import { studentProfileNeedsCompletion } from "./student-profile-completion";
 
 export function getSessionIdFromToken(token?: string | null): string | null {
   if (!token) return null;
@@ -38,11 +39,23 @@ export async function completeLoginRedirect(
 
   const { data: profileData } = await supabase
     .from("profiles")
-    .select("security_signed, role")
+    .select(
+      "security_signed, role, full_name, address_street_number, address_street_name, address_ward, phone, phone_verified_at, data_sharing_consent_at"
+    )
     .eq("id", userId)
     .single();
 
-  const profile = profileData as Pick<ProfileRow, "security_signed" | "role"> | null;
+  const profile = profileData as
+    | (Pick<ProfileRow, "security_signed" | "role"> & {
+        full_name?: string | null;
+        address_street_number?: string | null;
+        address_street_name?: string | null;
+        address_ward?: string | null;
+        phone?: string | null;
+        phone_verified_at?: string | null;
+        data_sharing_consent_at?: string | null;
+      })
+    | null;
 
   const { error: revokeError } = await supabase.auth.signOut({ scope: "others" });
   if (revokeError) {
@@ -63,6 +76,11 @@ export async function completeLoginRedirect(
 
   if (!profile?.security_signed) {
     router.push(`/auth/agree-terms?to=${encodeURIComponent(safeTo)}`);
+    return;
+  }
+
+  if (studentProfileNeedsCompletion(profile)) {
+    router.push(`/student/profile?required=1&to=${encodeURIComponent(safeTo)}`);
     return;
   }
 

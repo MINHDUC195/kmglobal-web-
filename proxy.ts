@@ -1,5 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { studentProfileNeedsCompletion } from "./lib/student-profile-completion";
+import {
+  STUDENT_PROFILE_COMPLETION_SELECT,
+  apiPathRequiresCompleteStudentProfile,
+  jsonStudentProfileIncomplete,
+  pageRequiresCompleteStudentProfile,
+} from "./lib/student-profile-api-guard";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -37,6 +44,36 @@ export async function proxy(request: NextRequest) {
     const params = new URLSearchParams({ reason: "not-authenticated" });
     if (to && to !== "/" && to.startsWith("/")) params.set("to", to);
     return NextResponse.redirect(new URL(`/login?${params.toString()}`, request.url));
+  }
+
+  const needsCompleteStudentProfile =
+    pageRequiresCompleteStudentProfile(pathname) ||
+    (pathname.startsWith("/api/") && apiPathRequiresCompleteStudentProfile(pathname));
+
+  if (needsCompleteStudentProfile) {
+    if (!user) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return redirectToLogin();
+    }
+    const { data: completionProfile } = await supabase
+      .from("profiles")
+      .select(STUDENT_PROFILE_COMPLETION_SELECT)
+      .eq("id", user.id)
+      .single();
+    if (studentProfileNeedsCompletion(completionProfile)) {
+      if (pathname.startsWith("/api/")) {
+        return jsonStudentProfileIncomplete();
+      }
+      const to = pathname + request.nextUrl.search;
+      return NextResponse.redirect(
+        new URL(
+          `/student/profile?required=1&to=${encodeURIComponent(to)}`,
+          request.url
+        )
+      );
+    }
   }
 
   // Bảo vệ route /owner - chỉ owner
@@ -102,5 +139,19 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|logo|public|api|verify|terms-of-service|privacy-policy|auth).*)",
+    "/api/student/enroll",
+    "/api/checkout/init",
+    "/api/learn/progress",
+    "/api/pdf/watermark",
+    "/api/bunny/signed-url",
+    "/api/quiz/questions",
+    "/api/quiz/submit",
+    "/api/quiz/final-exam/submit",
+    "/api/lesson-questions/:path*",
+    "/api/student/enrollments",
+    "/api/student/enrollments/:path*",
+    "/api/courses/:id",
+    "/api/lessons/:id",
+    "/api/student/certificates/:id/pdf",
   ],
 };

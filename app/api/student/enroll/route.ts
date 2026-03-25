@@ -10,6 +10,7 @@ import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { validateOrigin } from "../../../../lib/csrf";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
 import { canReactivateCanceledEnrollment } from "../../../../lib/enrollment-reactivation";
+import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 
 export async function POST(request: NextRequest) {
   const rl = await checkRateLimit(
@@ -32,6 +33,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Bạn cần đăng nhập để đăng ký" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const body = await request.json();
     const courseId = (body as { courseId?: string }).courseId;

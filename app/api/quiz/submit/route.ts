@@ -10,6 +10,7 @@ import {
   buildStudentAnswerDisplay,
 } from "../../../../lib/quiz-answer-display";
 import { isCourseExpiredUncompleted } from "../../../../lib/course-expired-uncompleted";
+import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 
 const EPS = 1e-6;
 
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const body = await request.json();
     const { questionId, selectedOptionIds, fillBlankAnswer, enrollmentId } = body;

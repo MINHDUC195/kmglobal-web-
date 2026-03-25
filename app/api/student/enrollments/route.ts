@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
+import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 
 export async function GET() {
   try {
@@ -30,6 +31,9 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const admin = getSupabaseAdminClient();
     const { data: enrollments, error } = await admin

@@ -5,6 +5,7 @@ import { addWatermarkToPdf } from "@/lib/pdf-watermark";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getLessonWithAccess } from "@/lib/lesson-access";
 import { checkRateLimit, rateLimitKeyFromRequest } from "@/lib/rate-limit";
+import { requireCompleteStudentProfileForApi } from "@/lib/student-profile-api-guard";
 
 export const maxDuration = 30;
 
@@ -109,6 +110,9 @@ export async function POST(request: NextRequest) {
     if (!lessonId) {
       return NextResponse.json({ error: "lessonId or previewDocumentUrl required" }, { status: 400 });
     }
+
+    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    if (profileBlock) return profileBlock;
 
     const enrollmentId =
       typeof body?.enrollmentId === "string" && body.enrollmentId.trim()
