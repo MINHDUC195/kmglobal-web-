@@ -50,7 +50,7 @@ export default function FinalExamClient({
     overallPercent: number;
     totalPoints: number;
     maxPoints: number;
-    certificate?: { code: string; percentScore: number };
+    certificate?: { id: string; code: string; percentScore: number };
     certificateBlockedReason?: string | null;
   } | null>(null);
 
@@ -205,6 +205,14 @@ export default function FinalExamClient({
                   className="mt-4 inline-block rounded-full bg-[#D4AF37] px-6 py-2.5 text-sm font-bold text-black hover:bg-[#E7C768]"
                 >
                   Xem chứng chỉ
+                </Link>
+                <Link
+                  href={`/api/student/certificates/${result.certificate.id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-3 mt-4 inline-block rounded-full border border-[#D4AF37]/60 px-6 py-2.5 text-sm font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                >
+                  Tải PDF chứng chỉ
                 </Link>
               </div>
             )}

@@ -34,6 +34,12 @@ const modules = [
     icon: "📊",
   },
   {
+    title: "Hóa đơn VAT",
+    desc: "Danh sách giao dịch để đối soát và đánh dấu đã xuất hóa đơn điện tử",
+    href: "/owner/invoices",
+    icon: "🧾",
+  },
+  {
     title: "Điều khoản & chính sách",
     desc: "Soạn thảo nội dung hiển thị công khai cho học viên",
     href: "/owner/legal",

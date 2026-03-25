@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "ci": "npm run lint && npm test && node scripts/check-production-env.mjs && npm run build",
+    "ci:strict": "npm run lint && npm test && node scripts/check-production-env.mjs --require-payments --warn-redis && npm run build",
     "test": "vitest run",
     "generate:logo-ico": "node scripts/generate-logo-ico.mjs",
     "generate:logo-png": "node scripts/generate-logo-png.mjs",

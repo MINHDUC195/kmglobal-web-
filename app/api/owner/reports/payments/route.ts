@@ -63,9 +63,13 @@ type PaymentReportRowInternal = {
 type PaymentReportPublicRow = Omit<
   PaymentReportRowInternal,
   "_user_id" | "_created_at" | "_course_key" | "_enrollment_at"
->;
+> & {
+  /** Giao dịch payments không còn user (đã xóa Auth) — user_id null */
+  orphan_payment?: boolean;
+};
 
-export async function GET() {
+export async function GET(request: Request) {
+  const startedAt = Date.now();
   const supabase = await createServerSupabaseClient();
   const isOwner = await ensureOwner(supabase);
   if (!isOwner) {
@@ -73,15 +77,38 @@ export async function GET() {
   }
 
   const admin = getSupabaseAdminClient();
+  // Query params:
+  // - limit: page size (default 100, max 200)
+  // - offset: start index for merged list
+  // - paymentStatus: pending|completed|failed|refunded|cancelled
+  // - includeEnrollmentOnly: 1/0 (default 1)
+  const reqUrl = new URL(request.url);
+  const limitRaw = Number.parseInt(reqUrl.searchParams.get("limit") ?? "100", 10);
+  const offsetRaw = Number.parseInt(reqUrl.searchParams.get("offset") ?? "0", 10);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 100;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0;
+  const includeEnrollmentOnly = reqUrl.searchParams.get("includeEnrollmentOnly") !== "0";
+  const paymentStatus = reqUrl.searchParams.get("paymentStatus");
+  const allowedStatuses = new Set(["pending", "completed", "failed", "refunded", "cancelled"]);
+  const statusFilter =
+    paymentStatus && allowedStatuses.has(paymentStatus) ? paymentStatus : null;
+  const pullLimit = Math.min(Math.max(limit * 5, 500), 2000);
 
-  const { data: payments } = await admin
+  let paymentsQuery = admin
     .from("payments")
     .select("id, user_id, amount_cents, status, gateway_transaction_id, invoice_exported_at, created_at, updated_at, metadata")
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(pullLimit);
+  if (statusFilter) {
+    paymentsQuery = paymentsQuery.eq("status", statusFilter);
+  }
+  const { data: payments } = await paymentsQuery;
 
   if (!payments || payments.length === 0) {
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({
+      items: [],
+      meta: { total: 0, limit, offset, hasMore: false },
+    });
   }
 
   const paymentIds = payments.map((p) => p.id);
@@ -205,13 +232,15 @@ export async function GET() {
 
   const paymentItems = dedupePaymentRows(rows);
 
-  const { data: enrollmentsWithoutPayment } = await admin
-    .from("enrollments")
-    .select("id, user_id, regular_course_id, enrolled_at, status")
-    .is("payment_id", null)
-    .eq("status", "active")
-    .order("enrolled_at", { ascending: false })
-    .limit(500);
+  const { data: enrollmentsWithoutPayment } = includeEnrollmentOnly
+    ? await admin
+        .from("enrollments")
+        .select("id, user_id, regular_course_id, enrolled_at, status")
+        .is("payment_id", null)
+        .eq("status", "active")
+        .order("enrolled_at", { ascending: false })
+        .limit(pullLimit)
+    : { data: [] as { id: string; user_id: string; regular_course_id: string; enrolled_at: string | null; status: string }[] };
 
   const enrollmentOnlyRows = await buildEnrollmentWithoutPaymentRows(
     admin,
@@ -221,9 +250,28 @@ export async function GET() {
     programMap
   );
 
-  const items = mergeAndSortReportRows(paymentItems, enrollmentOnlyRows);
+  const merged = mergeAndSortReportRows(paymentItems, enrollmentOnlyRows);
+  const total = merged.length;
+  const items = merged.slice(offset, offset + limit);
+  const hasMore = offset + items.length < total;
 
-  return NextResponse.json({ items });
+  const elapsed = Date.now() - startedAt;
+  if (elapsed > 1200) {
+    console.warn("[owner/reports/payments] slow request", {
+      elapsed_ms: elapsed,
+      total,
+      returned: items.length,
+      limit,
+      offset,
+      includeEnrollmentOnly,
+      statusFilter,
+    });
+  }
+
+  return NextResponse.json({
+    items,
+    meta: { total, limit, offset, hasMore },
+  });
 }
 
 /**
@@ -252,11 +300,13 @@ function dedupePaymentRows(rows: PaymentReportRowInternal[]): PaymentReportPubli
 
   return list.map((row) => {
     const { _user_id, _created_at, _course_key, _enrollment_at, ...pub } = row;
-    void _user_id;
     void _created_at;
     void _course_key;
     void _enrollment_at;
-    return pub;
+    return {
+      ...pub,
+      orphan_payment: _user_id == null,
+    };
   });
 }
 
@@ -358,6 +408,7 @@ async function buildEnrollmentWithoutPaymentRows(
         amount_display: "Miễn phí",
         invoice_exported_at: null,
         enrollment_only: true,
+        orphan_payment: false,
       };
     }
 
@@ -378,6 +429,7 @@ async function buildEnrollmentWithoutPaymentRows(
       amount_display: formatVnd(saleCents),
       invoice_exported_at: null,
       enrollment_only: true,
+      orphan_payment: false,
     };
   });
 }

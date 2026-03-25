@@ -47,6 +47,23 @@ Chạy migration trong Supabase SQL Editor. Nếu user đã tồn tại, chỉ c
 - **20260324120100_questions_rls_remove_student_select.sql** — Xóa policy cho phép mọi user đã đăng nhập đọc toàn bộ `questions`; đọc câu hỏi qua API server.
 - Hoặc chạy một lần: `RUN_MIGRATION_QUESTIONS_RLS_NARROW.sql` trong SQL Editor.
 
+## Đăng nhập email (magic link / OTP)
+
+Ứng dụng dùng `/auth/callback` sau khi user nhấp link trong email. Trong **Supabase Dashboard → Authentication → URL configuration**:
+
+- **Site URL:** URL production (ví dụ `https://your-domain.com`) hoặc `http://localhost:3000` khi dev.
+- **Redirect URLs:** thêm từng dòng (không thiếu đường dẫn):
+  - `http://localhost:3000/auth/callback`
+  - `http://localhost:3000/auth/confirm`
+  - `https://<domain-của-bạn>/auth/callback`
+  - `https://<domain-của-bạn>/auth/confirm`
+
+Trong **Authentication → Providers → Email**: bật email; nếu dùng mã 6 số, bật **Email OTP** (hoặc tương đương theo giao diện Supabase).
+
 ## Cache catalog (Next.js)
 
 - Sau khi admin cập nhật chương trình/khóa học công khai, có thể gọi **POST** `/api/admin/revalidate-catalog` (đã đăng nhập owner/admin) để làm mới tag `catalog` (trang chủ, `/courses`, `/programs/[id]/courses`).
+
+## Dọn payments / hóa đơn sau khi xóa user (Auth)
+
+- **`ops_cleanup_payments_deleted_users.sql`** — Xem và xóa các dòng `payments` có `user_id IS NULL` (user đã xóa trong Auth; cột `invoice_exported_at` nằm trên `payments`). Chạy **SELECT** trước, rồi mới **DELETE** trong SQL Editor.

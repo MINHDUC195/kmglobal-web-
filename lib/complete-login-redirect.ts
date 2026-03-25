@@ -1,0 +1,70 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ProfileRow } from "../types/database";
+
+export function getSessionIdFromToken(token?: string | null): string | null {
+  if (!token) return null;
+  const segments = token.split(".");
+  if (segments.length < 2) return null;
+  try {
+    const base64 = segments[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(base64);
+    const payload = JSON.parse(json) as { session_id?: string };
+    return payload.session_id || null;
+  } catch {
+    return null;
+  }
+}
+
+type RouterLike = { push: (href: string) => void };
+
+/**
+ * Sau khi Supabase đã có session (mật khẩu, OTP, magic link…): thu hồi phiên cũ, cập nhật profile, redirect.
+ */
+export async function completeLoginRedirect(
+  supabase: SupabaseClient,
+  router: RouterLike,
+  options?: { redirectTo?: string | null }
+): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) {
+    router.push("/login?reason=not-authenticated");
+    return;
+  }
+
+  const userId = session.user.id;
+  const sessionId = getSessionIdFromToken(session.access_token);
+
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select("security_signed, role")
+    .eq("id", userId)
+    .single();
+
+  const profile = profileData as Pick<ProfileRow, "security_signed" | "role"> | null;
+
+  const { error: revokeError } = await supabase.auth.signOut({ scope: "others" });
+  if (revokeError) {
+    console.warn("Không thể thu hồi toàn bộ phiên cũ:", revokeError.message);
+  }
+
+  await supabase.from("profiles").update({ last_session_id: sessionId || null }).eq("id", userId);
+
+  let safeTo = "/";
+  if (options?.redirectTo != null && options.redirectTo !== "") {
+    const t = options.redirectTo;
+    if (t.startsWith("/") && !t.startsWith("//")) safeTo = t;
+  } else if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    const to = params.get("to");
+    if (to && to.startsWith("/") && !to.startsWith("//")) safeTo = to;
+  }
+
+  if (!profile?.security_signed) {
+    router.push(`/auth/agree-terms?to=${encodeURIComponent(safeTo)}`);
+    return;
+  }
+
+  router.push(safeTo);
+}

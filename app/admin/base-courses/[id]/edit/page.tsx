@@ -61,6 +61,8 @@ export default function EditBaseCoursePage() {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [pdfPreviewError, setPdfPreviewError] = useState("");
+  const [previewPdfLoading, setPreviewPdfLoading] = useState(false);
   const [programId, setProgramId] = useState<string | null>(null);
   const [programName, setProgramName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +117,69 @@ export default function EditBaseCoursePage() {
     }
     void load().finally(() => setLoading(false));
   }, [id, supabase, router]);
+
+  async function handleCertificatePdfPreview() {
+    if (!certificateSampleUrl.trim()) {
+      setPdfPreviewError("Cần có mẫu chứng chỉ (PDF/ảnh). Hãy tải lên trước.");
+      return;
+    }
+    setPdfPreviewError("");
+    setPreviewPdfLoading(true);
+    try {
+      const res = await fetch(`/api/admin/base-courses/${id}/certificate-preview`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          certificate_template_config: certConfig,
+          certificate_sample_url: certificateSampleUrl.trim(),
+        }),
+      });
+      const contentType = res.headers.get("content-type") || "";
+
+      if (!res.ok) {
+        const errText = await res.text();
+        let msg = "Không tạo được PDF thử";
+        try {
+          const j = JSON.parse(errText) as { error?: string };
+          if (j.error) msg = j.error;
+        } catch {
+          if (errText) msg = errText;
+        }
+        throw new Error(msg);
+      }
+
+      if (!contentType.includes("application/pdf")) {
+        const errText = await res.text();
+        let msg = "Phản hồi không phải PDF (có thể lỗi máy chủ hoặc phiên đăng nhập).";
+        try {
+          const j = JSON.parse(errText) as { error?: string };
+          if (j.error) msg = j.error;
+        } catch {
+          if (errText) msg = errText.slice(0, 500);
+        }
+        throw new Error(msg);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "certificate-preview.pdf";
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 120_000);
+    } catch (err) {
+      setPdfPreviewError(err instanceof Error ? err.message : "Lỗi tạo PDF thử");
+    } finally {
+      setPreviewPdfLoading(false);
+    }
+  }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -230,7 +295,7 @@ export default function EditBaseCoursePage() {
           Chỉnh sửa khóa học cơ bản
         </h1>
 
-        <form onSubmit={handleSubmit} className="mt-8 max-w-xl space-y-4">
+        <form onSubmit={handleSubmit} className="mt-8 max-w-3xl space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-white/90">Mã khóa học *</label>
             <input
@@ -353,24 +418,41 @@ export default function EditBaseCoursePage() {
                 <span>⬆</span>
                 {uploading ? "Đang tải lên..." : "Tải lên PDF/ảnh"}
               </button>
-              <input
-                type="url"
-                value={certificateSampleUrl}
-                onChange={(e) => setCertificateSampleUrl(e.target.value)}
-                placeholder="Hoặc dán URL trực tiếp..."
-                className="flex-1 min-w-[200px] rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-white placeholder-gray-500 outline-none focus:border-[#D4AF37]"
-              />
             </div>
+            {certificateSampleUrl.trim() ? (
+              <p className="mt-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-400">
+                Đã có mẫu trên hệ thống. Có thể tải file mới để thay thế.
+              </p>
+            ) : null}
             <p className="mt-1 text-xs text-gray-500">
-              Tải lên file hoặc dán link. Mẫu sẽ hiển thị tại trang chi tiết khóa.
+              Chỉ tải file từ máy. Mẫu sẽ hiển thị tại trang chi tiết khóa.
             </p>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <h3 className="mb-3 text-sm font-semibold text-white">Cấu hình vị trí thông tin nhúng (tọa độ PDF)</h3>
-            <p className="mb-4 text-xs text-gray-500">
-              Đơn vị: point (1 point ≈ 0.35mm). Lấy tọa độ từ phần mềm thiết kế (Figma, Illustrator...).
-            </p>
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Chứng chỉ — vị trí trên mẫu (tọa độ PDF)</h3>
+                <p className="mt-1 max-w-xl text-xs text-gray-500">
+                  Đơn vị: <strong className="font-medium text-gray-400">point</strong> (1 pt ≈ 1/72 inch). Hệ tọa độ PDF:
+                  gốc (0,0) ở góc dưới-trái trang; trang A4 ngang thường ~842×595. Nhập số bên dưới rồi bấm «Xem PDF thử»
+                  để kiểm tra — đó là cùng engine với chứng chỉ thật.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCertificatePdfPreview()}
+                disabled={previewPdfLoading || !certificateSampleUrl.trim()}
+                className="shrink-0 rounded-full border border-emerald-500/60 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {previewPdfLoading ? "Đang tạo PDF thử..." : "Xem PDF thử (chuẩn in)"}
+              </button>
+            </div>
+            {pdfPreviewError ? (
+              <p className="mb-4 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                {pdfPreviewError}
+              </p>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 rounded-lg border border-white/5 p-3">
                 <p className="text-xs font-medium text-[#D4AF37]">Tên học viên</p>

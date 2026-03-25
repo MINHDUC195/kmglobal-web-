@@ -111,6 +111,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
         </div>
       )}
 
+      <main>
       {/* Hero */}
       <section className="relative z-10 flex flex-col items-center justify-center px-4 py-16 text-center sm:px-6 sm:py-20 lg:py-24">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.35em] text-[#D4AF37]/80">
@@ -451,6 +452,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
           </Link>
         </div>
       </section>
+      </main>
 
       <Footer />
     </div>

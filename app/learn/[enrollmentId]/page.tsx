@@ -188,6 +188,14 @@ export default async function LearnPage({ params }: LearnPageProps) {
           >
             Xem chứng chỉ
           </Link>
+          <Link
+            href={`/api/student/certificates/${certificate.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full border border-[#002b2d]/30 bg-white px-5 py-2.5 text-sm font-semibold text-[#002b2d] hover:bg-[#f6f8f8]"
+          >
+            Tải PDF
+          </Link>
         </div>
       )}
 

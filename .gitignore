@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/test-artifacts
 
 # next.js
 /.next/
@@ -23,6 +24,9 @@
 # misc
 .DS_Store
 *.pem
+
+# Cursor
+.cursor/
 
 # debug
 npm-debug.log*

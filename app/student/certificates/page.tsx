@@ -76,6 +76,14 @@ export default async function StudentCertificatesPage() {
               >
                 Xem / Xác minh
               </Link>
+              <Link
+                href={`/api/student/certificates/${c.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-gray-200 hover:bg-white/5"
+              >
+                Tải PDF
+              </Link>
             </div>
           ))}
         </div>

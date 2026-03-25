@@ -19,9 +19,7 @@ type PaymentItem = {
   amount_cents: number;
   amount_display: string;
   invoice_exported_at: string | null;
-  /** Dòng từ đăng ký không qua cổng thanh toán (không có payment) */
   enrollment_only?: boolean;
-  /** Giao dịch payment không còn học viên (user đã xóa trong Auth) */
   orphan_payment?: boolean;
 };
 
@@ -32,7 +30,9 @@ type ReportMeta = {
   hasMore: boolean;
 };
 
-export default function OwnerReportsPage() {
+type FilterKey = "vat_pending" | "vat_done" | "all";
+
+export default function OwnerInvoicesPage() {
   const [items, setItems] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -40,6 +40,7 @@ export default function OwnerReportsPage() {
   const [exporting, setExporting] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>("vat_pending");
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [cleanupSuccess, setCleanupSuccess] = useState<string | null>(null);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
@@ -61,7 +62,9 @@ export default function OwnerReportsPage() {
     setLoadError(null);
     try {
       const currentOffset = reset ? 0 : items.length;
-      const res = await fetch(`/api/owner/reports/payments?limit=100&offset=${currentOffset}`);
+      const res = await fetch(
+        `/api/owner/reports/payments?limit=100&offset=${currentOffset}&includeEnrollmentOnly=0`
+      );
       const data = await res.json();
       if (res.ok) {
         const raw = (data.items ?? []) as PaymentItem[];
@@ -116,7 +119,7 @@ export default function OwnerReportsPage() {
         setExportError(
           typeof (data as { error?: string }).error === "string"
             ? (data as { error: string }).error
-            : "Không thể xuất hóa đơn."
+            : "Không thể đánh dấu đã xuất hóa đơn."
         );
       }
     } catch {
@@ -164,31 +167,83 @@ export default function OwnerReportsPage() {
     void loadPayments(true);
   }, [loadPayments]);
 
+  const filtered = useMemo(() => {
+    return items.filter((row) => {
+      const enrollmentOnly = Boolean(row.enrollment_only);
+      if (filter === "all") return true;
+      if (enrollmentOnly) return false;
+      if (row.payment_status !== "completed") return false;
+      if (filter === "vat_pending") return !row.invoice_exported_at;
+      if (filter === "vat_done") return Boolean(row.invoice_exported_at);
+      return true;
+    });
+  }, [items, filter]);
+
+  const counts = useMemo(() => {
+    const vatEligible = items.filter(
+      (r) => !r.enrollment_only && r.payment_status === "completed"
+    );
+    return {
+      pending: vatEligible.filter((r) => !r.invoice_exported_at).length,
+      done: vatEligible.filter((r) => r.invoice_exported_at).length,
+      all: items.length,
+    };
+  }, [items]);
+
   return (
     <>
       <div className="mb-8 flex flex-wrap items-center gap-4">
-        <Link
-          href="/owner"
-          className="text-sm text-gray-400 hover:text-[#D4AF37]"
-        >
+        <Link href="/owner" className="text-sm text-gray-400 hover:text-[#D4AF37]">
           ← Dashboard Owner
         </Link>
         <span className="text-gray-600">|</span>
-        <Link
-          href="/owner/invoices"
-          className="text-sm text-gray-400 hover:text-[#D4AF37]"
-        >
-          Hóa đơn VAT điện tử
+        <Link href="/owner/reports" className="text-sm text-gray-400 hover:text-[#D4AF37]">
+          Báo cáo tổng hợp
         </Link>
       </div>
+
       <h1 className="font-[family-name:var(--font-serif)] text-2xl font-bold text-[#D4AF37]">
-        Báo cáo
+        Hóa đơn VAT &amp; đối soát
       </h1>
+      <p className="mt-2 max-w-3xl text-sm text-gray-400">
+        Danh sách giao dịch <strong className="text-gray-300">đã thanh toán</strong> để đối soát với phần mềm kế toán / hệ thống{" "}
+        <strong className="text-gray-300">hóa đơn điện tử VAT</strong> của doanh nghiệp. Nút{" "}
+        <span className="text-[#D4AF37]">Đánh dấu đã xuất</span> ghi nhận trên hệ thống này sau khi bạn đã phát hành hóa đơn
+        ngoài phần mềm (MISA, Viettel, v.v.). Kết nối API tự động với nhà cung cấp hóa đơn có thể bổ sung sau nếu cần.
+      </p>
+
+      <div className="mt-6 flex flex-wrap gap-2">
+        {(
+          [
+            ["vat_pending", `Chờ xuất / đối soát (${counts.pending})`, filter === "vat_pending"],
+            ["vat_done", `Đã xuất hóa đơn (${counts.done})`, filter === "vat_done"],
+            ["all", `Tất cả giao dịch (${counts.all})`, filter === "all"],
+          ] as const
+        ).map(([key, label, active]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setFilter(key)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              active
+                ? "bg-[#D4AF37] text-black"
+                : "border border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {meta && (
+        <p className="mt-3 text-xs text-gray-500">
+          Đang hiển thị {items.length}/{meta.total} giao dịch.
+        </p>
+      )}
 
       <div className="mt-8 rounded-[2rem] border-2 border-[#0a1628] bg-white p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <h2 className="text-lg font-bold uppercase tracking-wide text-[#0a1628]">
-            Thông tin thanh toán
+            Danh sách phục vụ xuất hóa đơn VAT
           </h2>
           {orphanCount > 0 && (
             <button
@@ -216,45 +271,44 @@ export default function OwnerReportsPage() {
         )}
 
         {loadError && (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
-            {loadError}
-          </p>
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">{loadError}</p>
         )}
         {exportError && (
-          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-            {exportError}
-          </p>
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">{exportError}</p>
         )}
 
         {loading ? (
           <p className="mt-6 text-gray-500">Đang tải...</p>
-        ) : items.length === 0 ? (
-          <p className="mt-6 text-gray-500">Chưa có giao dịch thanh toán nào.</p>
+        ) : filtered.length === 0 ? (
+          <p className="mt-6 text-gray-500">
+            {filter === "vat_pending"
+              ? "Không có giao dịch đã thanh toán nào chờ đánh dấu xuất hóa đơn."
+              : filter === "vat_done"
+                ? "Chưa có giao dịch nào được đánh dấu đã xuất hóa đơn."
+                : "Chưa có dữ liệu giao dịch."}
+          </p>
         ) : (
           <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse">
+            <table className="w-full min-w-[920px] border-collapse">
               <thead>
                 <tr className="border-b-2 border-[#0a1628]">
                   <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
                     Chương trình &amp; khóa học
                   </th>
                   <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
-                    Ngày đăng ký
-                  </th>
-                  <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
-                    Học viên
-                  </th>
-                  <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
-                    Mã HV
+                    Học viên / Mã HV
                   </th>
                   <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
                     Mã giao dịch
                   </th>
                   <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
-                    Thanh toán
+                    Ngày thanh toán
                   </th>
                   <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
                     Số tiền
+                  </th>
+                  <th className="border border-black/20 px-3 py-3 text-left text-xs font-semibold text-[#0a1628] sm:text-sm">
+                    Trạng thái hóa đơn VAT
                   </th>
                   <th className="border border-black/20 px-3 py-3 text-center text-xs font-semibold text-[#0a1628] sm:text-sm">
                     Thao tác
@@ -262,25 +316,34 @@ export default function OwnerReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => {
-                  const pay = row.payment_status || "";
+                {filtered.map((row) => {
                   const enrollmentOnly = Boolean(row.enrollment_only);
-                  const canExportInvoice =
-                    !enrollmentOnly &&
-                    pay === "completed" &&
-                    !row.invoice_exported_at;
+                  const canMarkExported =
+                    !enrollmentOnly && row.payment_status === "completed" && !row.invoice_exported_at;
+
+                  let invoiceLabel: string;
+                  // Ưu tiên hiển thị "Đã xuất" nếu đã có mốc export để đồng nhất với trang báo cáo.
+                  if (row.invoice_exported_at) {
+                    invoiceLabel = `Đã xuất — ${formatInvoiceDate(row.invoice_exported_at)}`;
+                  } else if (enrollmentOnly) {
+                    invoiceLabel = "— (không qua thanh toán)";
+                  } else if (row.payment_status !== "completed") {
+                    invoiceLabel = "Chưa đủ điều kiện (chưa thanh toán)";
+                  } else {
+                    invoiceLabel = "Chưa đánh dấu xuất";
+                  }
+
                   let actionLabel: string;
-                  if (enrollmentOnly && pay === "free") {
+                  if (enrollmentOnly || row.payment_status !== "completed") {
                     actionLabel = "—";
                   } else if (row.invoice_exported_at) {
-                    actionLabel = "Đã xuất";
-                  } else if (canExportInvoice) {
-                    actionLabel = exporting === row.id ? "Đang xử lý..." : "Xuất hóa đơn";
-                  } else if (pay === "pending") {
-                    actionLabel = "Chưa thanh toán";
+                    actionLabel = "Đã ghi nhận";
+                  } else if (canMarkExported) {
+                    actionLabel = exporting === row.id ? "Đang xử lý..." : "Đánh dấu đã xuất";
                   } else {
-                    actionLabel = "Không thể xuất";
+                    actionLabel = "—";
                   }
+
                   return (
                     <tr
                       key={enrollmentOnly ? `enr:${row.id}` : row.id}
@@ -296,35 +359,32 @@ export default function OwnerReportsPage() {
                           {row.course_name}
                         </div>
                       </td>
-                      <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm whitespace-nowrap">
-                        {row.enrolled_at_display}
-                      </td>
                       <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm">
-                        {row.student_name}
-                      </td>
-                      <td className="border border-black/10 px-3 py-3 font-mono text-xs text-[#0a1628] sm:text-sm">
-                        {row.student_code}
+                        <div>{row.student_name}</div>
+                        <div className="mt-0.5 font-mono text-[11px] text-gray-600">{row.student_code}</div>
                       </td>
                       <td className="border border-black/10 px-3 py-3 font-mono text-[11px] text-[#0a1628] sm:text-sm">
                         {row.management_code}
                       </td>
-                      <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm">
-                        <div className="whitespace-nowrap">{row.status}</div>
-                        {row.payment_status === "completed" && row.payment_date_display !== "—" ? (
-                          <div className="mt-0.5 text-[11px] text-gray-500">{row.payment_date_display}</div>
-                        ) : null}
+                      <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm whitespace-nowrap">
+                        {row.payment_status === "completed" && row.payment_date_display !== "—"
+                          ? row.payment_date_display
+                          : row.payment_date_display}
                       </td>
                       <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm whitespace-nowrap">
                         {row.amount_display}
+                      </td>
+                      <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm">
+                        {invoiceLabel}
                       </td>
                       <td className="border border-black/10 px-3 py-3 text-center">
                         <button
                           type="button"
                           onClick={() => void handleExportInvoice(row.id)}
-                          disabled={!canExportInvoice || exporting === row.id}
+                          disabled={!canMarkExported || exporting === row.id}
                           className={`
                           rounded-lg px-3 py-2 text-xs font-medium sm:text-sm
-                          ${canExportInvoice && exporting !== row.id
+                          ${canMarkExported && exporting !== row.id
                             ? "bg-[#0e5a77] text-white hover:bg-[#0d4d66]"
                             : "cursor-default bg-gray-300 text-gray-600"
                           }
@@ -356,4 +416,18 @@ export default function OwnerReportsPage() {
       </div>
     </>
   );
+}
+
+function formatInvoiceDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
 }
