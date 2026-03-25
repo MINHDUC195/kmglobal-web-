@@ -10,35 +10,78 @@ import { getSupabaseBrowserClient } from "../../../lib/supabase-browser";
  * Trang thông báo kiểm tra email - sau khi đăng ký cần xác nhận
  */
 function CheckEmailContent() {
+  const RATE_LIMIT_SECONDS = 900;
+  const RESEND_LIMIT_KEY_PREFIX = "kmglobal_resend_limit_until_";
   const searchParams = useSearchParams();
   const emailFromUrl = searchParams.get("email") || "";
   const isReady = searchParams.get("ready") === "1";
   const [emailInput, setEmailInput] = useState(emailFromUrl);
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<"success" | "error" | null>(null);
+  const [resendErrorText, setResendErrorText] = useState("");
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
   const email = emailFromUrl || emailInput.trim();
+  const resendLimitKey = `${RESEND_LIMIT_KEY_PREFIX}${email.toLowerCase()}`;
 
   useEffect(() => {
     if (emailFromUrl) setEmailInput(emailFromUrl);
   }, [emailFromUrl]);
 
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setCooldownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldownSeconds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !email) return;
+    const raw = window.localStorage.getItem(resendLimitKey);
+    if (!raw) return;
+    const until = Number(raw);
+    if (!Number.isFinite(until) || until <= Date.now()) {
+      window.localStorage.removeItem(resendLimitKey);
+      return;
+    }
+    const seconds = Math.ceil((until - Date.now()) / 1000);
+    setCooldownSeconds((prev) => (prev > 0 ? prev : seconds));
+    setResendMessage("error");
+    setResendErrorText("Hệ thống gửi mail đang bị giới hạn tạm thời từ Supabase. Vui lòng thử lại sau.");
+  }, [email, resendLimitKey]);
+
   async function handleResend() {
-    if (!email || resending) return;
+    if (!email || resending || cooldownSeconds > 0) return;
     setResending(true);
     setResendMessage(null);
+    setResendErrorText("");
     try {
       const supabase = getSupabaseBrowserClient();
+      const emailRedirectTo =
+        typeof window !== "undefined" ? `${window.location.origin}/auth/confirm` : undefined;
       const { error } = await supabase.auth.resend({
         type: "signup",
         email: email.trim(),
+        options: { emailRedirectTo },
       });
       if (error) {
+        if ((error as { status?: number }).status === 429) {
+          setCooldownSeconds(RATE_LIMIT_SECONDS);
+          if (typeof window !== "undefined" && email) {
+            const until = Date.now() + RATE_LIMIT_SECONDS * 1000;
+            window.localStorage.setItem(resendLimitKey, String(until));
+          }
+          setResendErrorText("Supabase đang giới hạn gửi email. Vui lòng chờ khoảng 15 phút rồi thử lại.");
+        } else {
+          setResendErrorText("Không thể gửi lại. Vui lòng thử sau.");
+        }
         setResendMessage("error");
         return;
       }
       setResendMessage("success");
     } catch {
+      setResendErrorText("Không thể gửi lại. Vui lòng thử sau.");
       setResendMessage("error");
     } finally {
       setResending(false);
@@ -107,10 +150,14 @@ function CheckEmailContent() {
             <button
               type="button"
               onClick={handleResend}
-              disabled={resending}
+              disabled={resending || cooldownSeconds > 0}
               className="mt-4 rounded-full border border-[#D4AF37]/60 px-6 py-2.5 text-sm font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/10 disabled:opacity-50"
             >
-              {resending ? "Đang gửi..." : "Gửi lại email xác nhận"}
+              {resending
+                ? "Đang gửi..."
+                : cooldownSeconds > 0
+                  ? `Thử lại sau ${Math.ceil(cooldownSeconds / 60)} phút`
+                  : "Gửi lại email xác nhận"}
             </button>
           ) : (
             <p className="mt-4 text-sm text-amber-400/90">
@@ -122,7 +169,7 @@ function CheckEmailContent() {
           <p className="mt-4 text-sm text-emerald-400">Đã gửi lại email xác nhận.</p>
         )}
         {resendMessage === "error" && (
-          <p className="mt-4 text-sm text-red-400">Không thể gửi lại. Vui lòng thử sau.</p>
+          <p className="mt-4 text-sm text-red-400">{resendErrorText || "Không thể gửi lại. Vui lòng thử sau."}</p>
         )}
 
         <Link

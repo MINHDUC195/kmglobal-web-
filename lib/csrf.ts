@@ -66,6 +66,36 @@ function originMatchesAllowed(requestOrigin: string, allowed: string[]): boolean
   }
 }
 
+function getRuntimeOriginsFromRequest(request: NextRequest): string[] {
+  const origins = new Set<string>();
+  const proto = request.headers.get("x-forwarded-proto");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = request.headers.get("host");
+
+  if (proto && forwardedHost) {
+    try {
+      origins.add(new URL(`${proto}://${forwardedHost}`).origin);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (host) {
+    try {
+      const fallbackProto = proto || (process.env.NODE_ENV === "production" ? "https" : "http");
+      origins.add(new URL(`${fallbackProto}://${host}`).origin);
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    origins.add(request.nextUrl.origin);
+  } catch {
+    /* ignore */
+  }
+
+  return [...origins];
+}
+
 /**
  * Validates request Origin/Referer for CSRF defense.
  * Used for state-changing API routes (checkout, enroll, etc).
@@ -74,7 +104,7 @@ function originMatchesAllowed(requestOrigin: string, allowed: string[]): boolean
 export function validateOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
-  const allowed = getAllowedOrigins();
+  const allowed = [...new Set([...getAllowedOrigins(), ...getRuntimeOriginsFromRequest(request)])];
 
   // Production: bắt buộc cấu hình NEXT_PUBLIC_SITE_URL / NEXT_PUBLIC_APP_URL — không thì CSRF coi như tắt.
   if (allowed.length === 0) {
@@ -90,7 +120,8 @@ export function validateOrigin(request: NextRequest): boolean {
 
   if (referer) {
     try {
-      return originMatchesAllowed(new URL(referer).origin, allowed);
+      const refererOrigin = new URL(referer).origin;
+      return originMatchesAllowed(refererOrigin, allowed);
     } catch {
       return false;
     }

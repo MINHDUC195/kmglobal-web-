@@ -163,12 +163,13 @@ export default function RegisterPage() {
       setIsSubmitting(true);
 
       const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const emailRedirectTo = baseUrl ? `${baseUrl}/auth/confirm` : undefined;
       const now = new Date().toISOString();
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: baseUrl ? `${baseUrl}/auth/confirm` : undefined,
+          emailRedirectTo,
           data: {
             full_name: fullName.trim(),
             address: address.trim() || undefined,
