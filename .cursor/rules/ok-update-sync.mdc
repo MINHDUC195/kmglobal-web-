@@ -1,0 +1,29 @@
+---
+description: Sau khi user kiểm thử xong, câu "OK update" kích hoạt đồng bộ GitHub, Vercel, Supabase
+alwaysApply: true
+---
+
+# OK update — đồng bộ sau khi kiểm thử
+
+Khi **đã hoàn tất yêu cầu trong phiên** và user **đã tự kiểm thử**, nếu user viết rõ **OK update** (hoặc tương đương: "ok, update", "OK, đồng bộ"), coi đó là lệnh **đóng phiên và đẩy thay đổi lên môi trường**.
+
+## Thứ tự thực hiện
+
+1. **GitHub**
+   - `git status`; stage và commit mọi thay đổi còn lại (message rõ ràng).
+   - `git push origin` (branch hiện tại, thường `main`).
+
+2. **Vercel**
+   - Nếu project đã nối Git: push thường **tự build** — kiểm tra deployment thành công (dashboard hoặc `vercel ls` / URL production).
+   - Nếu cần deploy tay hoặc env mới: `npx vercel --prod --yes` từ root repo; đảm bảo biến `NEXT_PUBLIC_*` / server đúng (xem `docs/PRODUCTION_AND_UAT.md`).
+
+3. **Supabase**
+   - **Không** có nút “đồng bộ toàn bộ repo lên Supabase cloud” một lần.
+   - **Schema:** áp dụng migration còn thiếu — `supabase/migrations/` theo thứ tự, hoặc SQL Editor với file tương ứng / `RUN_MIGRATION_*.sql` trong `supabase/` (xem `supabase/README.md`, `supabase/DEPLOY_CHECKLIST.md`).
+   - **Auth / URL:** Site URL, Redirect URLs trong Dashboard nếu thay đổi domain.
+   - **Secrets:** chỉ trong Dashboard hoặc CLI đã link project — không commit key.
+
+## Lưu ý
+
+- Chỉ chạy quy trình này khi user đã nói **OK update** (sau kiểm thử), trừ khi user yêu cầu deploy/push rõ ràng sớm hơn.
+- Nếu không chắc migration nào đã chạy trên production, liệt kê file cần apply và cảnh báo backup trước khi chạy SQL phá vỡ dữ liệu.
