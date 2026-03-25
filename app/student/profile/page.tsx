@@ -73,7 +73,6 @@ export default async function StudentProfilePage({ searchParams }: PageProps) {
         hasWard: Boolean(addressWard),
         profileCompletionRequired,
       },
-      timestamp: Date.now(),
     }),
   }).catch(() => {});
   // #endregion

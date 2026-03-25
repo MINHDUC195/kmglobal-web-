@@ -19,6 +19,8 @@ import {
   setCheckoutIdempotency,
 } from "../../../../lib/checkout-idempotency";
 import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
+import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
+import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
 
 export const maxDuration = 60;
 
@@ -177,6 +179,31 @@ export async function POST(request: NextRequest) {
     const amountCents = getSalePriceCents(priceCents, discountPercent);
     const amountVnd = amountCents;
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+
+    if (amountCents <= 0) {
+      const gate = await assertEnrollmentCanActivateAfterPayment(admin, user.id, courseId);
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.reason }, { status: 400 });
+      }
+      const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
+      await admin.from("enrollments").upsert(
+        {
+          user_id: user.id,
+          regular_course_id: courseId,
+          payment_id: freePayment.paymentId,
+          status: "active",
+        },
+        { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
+      );
+      const { data: enrollment } = await admin
+        .from("enrollments")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("regular_course_id", courseId)
+        .single();
+      const redirectUrl = enrollment?.id ? `${baseUrl}/learn/${enrollment.id}` : `${baseUrl}/student`;
+      return NextResponse.json({ redirectUrl, paymentId: freePayment.paymentId, free: true });
+    }
 
     const orderId = `KM-${Date.now()}-${user.id.slice(0, 8)}`;
     const orderInfo = `Thanh toan khoa hoc: ${(course.name as string).slice(0, 100)}`;

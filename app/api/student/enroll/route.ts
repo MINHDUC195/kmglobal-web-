@@ -11,6 +11,8 @@ import { validateOrigin } from "../../../../lib/csrf";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
 import { canReactivateCanceledEnrollment } from "../../../../lib/enrollment-reactivation";
 import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
+import { getSalePriceCents } from "../../../../lib/course-price";
+import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
 
 export async function POST(request: NextRequest) {
   const rl = await checkRateLimit(
@@ -69,7 +71,9 @@ export async function POST(request: NextRequest) {
 
     const { data: course, error: cErr } = await admin
       .from("regular_courses")
-      .select("id, name, base_course_id, registration_open_at, registration_close_at, course_end_at")
+      .select(
+        "id, name, base_course_id, registration_open_at, registration_close_at, course_end_at, price_cents, discount_percent"
+      )
       .eq("id", courseId)
       .single();
 
@@ -137,12 +141,24 @@ export async function POST(request: NextRequest) {
       if (!re.ok) {
         return NextResponse.json({ error: re.message }, { status: 400 });
       }
+      const priceCents = Number((course as { price_cents?: number | null }).price_cents) || 0;
+      const discountPercent =
+        (course as { discount_percent?: number | null }).discount_percent ?? null;
+      const salePriceCents = getSalePriceCents(priceCents, discountPercent);
+      const updates: { status: "active"; updated_at: string; payment_id?: string | null } = {
+        status: "active",
+        updated_at: new Date().toISOString(),
+      };
+      if (salePriceCents <= 0) {
+        const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
+        updates.payment_id = freePayment.paymentId;
+      } else {
+        // Khóa trả phí đăng ký lại: reset payment_id để phát sinh giao dịch mới khi checkout.
+        updates.payment_id = null;
+      }
       const { error: uErr } = await admin
         .from("enrollments")
-        .update({
-          status: "active",
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq("id", (existingRow as { id: string }).id)
         .eq("user_id", user.id);
 
@@ -165,12 +181,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const priceCents = Number((course as { price_cents?: number | null }).price_cents) || 0;
+    const discountPercent = (course as { discount_percent?: number | null }).discount_percent ?? null;
+    const salePriceCents = getSalePriceCents(priceCents, discountPercent);
+    let freePaymentId: string | null = null;
+    if (salePriceCents <= 0) {
+      const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
+      freePaymentId = freePayment.paymentId;
+    }
+
     const { data: enrollment, error: eErr } = await admin
       .from("enrollments")
       .insert({
         user_id: user.id,
         regular_course_id: courseId,
-        payment_id: null,
+        payment_id: freePaymentId,
         status: "active",
       })
       .select("id")

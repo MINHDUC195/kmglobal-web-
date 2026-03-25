@@ -81,6 +81,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
   let learningDataCleared = false;
   let accountLocked = false;
 
+  if (!paid) {
+    // Hủy đăng ký khi chưa hoàn tất thanh toán: đóng toàn bộ pending cùng user+khóa.
+    const { error: closePaymentErr } = await admin
+      .from("payments")
+      .update({
+        status: "cancelled",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .contains("metadata", { course_id: regularCourseId });
+    if (closePaymentErr) {
+      console.error("Cancel pending payment error:", closePaymentErr);
+    }
+  }
+
   if (cancelCount === 5 && paid) {
     if (baseCourseId) {
       await deleteLearningDataForEnrollment(
