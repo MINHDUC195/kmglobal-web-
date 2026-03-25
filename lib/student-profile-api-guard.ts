@@ -12,6 +12,7 @@ const STUDENT_PROFILE_COMPLETION_SELECT_FALLBACK = "role,full_name,phone,securit
 
 /** Dùng `any` để tránh TS "Type instantiation is excessively deep" với Supabase generics. */
 export async function fetchStudentProfileCompletion(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase generic chain triggers excessive depth with strict Database typing
   client: SupabaseClient<any>,
   userId: string
 ): Promise<{

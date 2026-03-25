@@ -21,7 +21,7 @@ export default async function StudentProfilePage({ searchParams }: PageProps) {
   if (!user) return null;
 
   const admin = getSupabaseAdminClient();
-  const { data: profile, error: profileError } = await admin
+  const { data: profile } = await admin
     .from("profiles")
     .select(
       "full_name, email, address, company, phone, gender, avatar_url, student_code"
@@ -51,31 +51,6 @@ export default async function StudentProfilePage({ searchParams }: PageProps) {
     gateError == null
       ? (gateData as { profile_completion_required?: boolean | null } | null)?.profile_completion_required !== false
       : true;
-
-  // #region agent log
-  fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "cc6d23" },
-    body: JSON.stringify({
-      sessionId: "cc6d23",
-      runId: "student-profile-page-load",
-      hypothesisId: "H1",
-      location: "app/student/profile/page.tsx:24",
-      message: "Loaded student profile initial data",
-      data: {
-        hasProfile: Boolean(profile),
-        profileErrorCode: profileError?.code ?? null,
-        addressErrorCode: addressError?.code ?? null,
-        gateErrorCode: gateError?.code ?? null,
-        hasCompany: Boolean((profile as { company?: string | null } | null)?.company?.trim()),
-        hasGender: Boolean((profile as { gender?: string | null } | null)?.gender?.trim()),
-        hasStreet: Boolean(addressStreetName),
-        hasWard: Boolean(addressWard),
-        profileCompletionRequired,
-      },
-    }),
-  }).catch(() => {});
-  // #endregion
 
   const p = profile as {
     full_name?: string | null;

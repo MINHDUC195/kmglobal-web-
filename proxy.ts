@@ -57,41 +57,8 @@ export async function proxy(request: NextRequest) {
       }
       return redirectToLogin();
     }
-    const {
-      profile: completionProfile,
-      error: completionError,
-      degraded,
-    } = await fetchStudentProfileCompletion(supabase, user.id);
+    const { profile: completionProfile } = await fetchStudentProfileCompletion(supabase, user.id);
     const needsCompletion = studentProfileNeedsCompletion(completionProfile);
-    // #region agent log
-    fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "cc6d23" },
-      body: JSON.stringify({
-        sessionId: "cc6d23",
-        runId: "proxy-profile-gate",
-        hypothesisId: "H3",
-        location: "proxy.ts:60",
-        message: "Proxy completion gate decision",
-        data: {
-          path: pathname,
-          completionErrorCode: completionError?.code ?? null,
-          degraded,
-          role: (completionProfile as { role?: string | null } | null)?.role ?? null,
-          hasFullName: Boolean(
-            (completionProfile as { full_name?: string | null } | null)?.full_name?.trim()
-          ),
-          hasPhone: Boolean((completionProfile as { phone?: string | null } | null)?.phone?.trim()),
-          hasConsent: Boolean(
-            (completionProfile as { data_sharing_consent_at?: string | null } | null)
-              ?.data_sharing_consent_at
-          ),
-          needsCompletion,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (needsCompletion) {
       if (pathname.startsWith("/api/")) {
         return jsonStudentProfileIncomplete();
