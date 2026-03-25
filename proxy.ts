@@ -17,6 +17,13 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
  * @see https://nextjs.org/docs/app/api-reference/file-conventions/proxy
  */
 export async function proxy(request: NextRequest) {
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  if (host === "www.kmglobal.net") {
+    const target = new URL(request.url);
+    target.hostname = "kmglobal.net";
+    return NextResponse.redirect(target, 307);
+  }
+
   const response = NextResponse.next({ request });
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {

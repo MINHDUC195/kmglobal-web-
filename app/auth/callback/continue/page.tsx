@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
-import { applyPendingOAuthRegisterConsent } from "../../../lib/apply-oauth-register-consent";
-import { completeLoginRedirect } from "../../../lib/complete-login-redirect";
-import { getSupabaseBrowserClient } from "../../../lib/supabase-browser";
+import NavLogoWithBanner from "../../../../components/NavLogoWithBanner";
+import { applyPendingOAuthRegisterConsent } from "../../../../lib/apply-oauth-register-consent";
+import { completeLoginRedirect } from "../../../../lib/complete-login-redirect";
+import { getSupabaseBrowserClient } from "../../../../lib/supabase-browser";
 
 const OTP_TYPES: readonly EmailOtpType[] = [
   "signup",
@@ -24,10 +24,10 @@ function parseOtpType(raw: string | null): EmailOtpType | null {
 }
 
 /**
- * Redirect sau đăng nhập bằng magic link / email (PKCE ?code=, hoặc token_hash, hoặc hash).
- * Thêm URL này vào Supabase Dashboard → Redirect URLs.
+ * Luồng không có ?code= (đã xử lý ở route.ts): token_hash, implicit hash, hoặc session sẵn có.
+ * Truy cập nội bộ qua rewrite từ GET /auth/callback.
  */
-export default function AuthCallbackPage() {
+export default function AuthCallbackContinuePage() {
   const router = useRouter();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Đang hoàn tất đăng nhập...");
@@ -42,6 +42,8 @@ export default function AuthCallbackPage() {
         const url = new URL(window.location.href);
         const params = url.searchParams;
         const redirectTo = params.get("to");
+        const tokenHash = params.get("token_hash");
+        const otpType = parseOtpType(params.get("type"));
 
         const authError = params.get("error");
         const authErrorDesc = params.get("error_description");
@@ -55,33 +57,13 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        const code = params.get("code");
-        if (code) {
-          const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeErr) {
-            console.warn("[auth/callback] exchangeCodeForSession:", exchangeErr.message);
-            setStatus("error");
-            setMessage(
-              "Không thể xác thực liên kết. Thử đăng nhập lại hoặc dùng mã trong email."
-            );
-            return;
-          }
-          window.history.replaceState(null, "", url.pathname + (redirectTo ? `?to=${encodeURIComponent(redirectTo)}` : ""));
-          await completeLoginRedirect(supabase, router, { redirectTo });
-          setStatus("success");
-          setMessage("Đang chuyển hướng...");
-          return;
-        }
-
-        const tokenHash = params.get("token_hash");
-        const otpType = parseOtpType(params.get("type"));
         if (tokenHash && otpType) {
           const { error: otpErr } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
             type: otpType,
           });
           if (otpErr) {
-            console.warn("[auth/callback] verifyOtp:", otpErr.message);
+            console.warn("[auth/callback/continue] verifyOtp:", otpErr.message);
             setStatus("error");
             setMessage("Liên kết đăng nhập không hợp lệ hoặc đã hết hạn.");
             return;
@@ -126,12 +108,12 @@ export default function AuthCallbackPage() {
 
         setStatus("error");
         setMessage(
-          hasHash || code || tokenHash
+          hasHash || tokenHash
             ? "Không thể hoàn tất đăng nhập. Liên kết có thể đã hết hạn."
             : "Thiếu thông tin xác thực. Hãy mở link trong email đăng nhập."
         );
       } catch (err) {
-        console.error("[auth/callback]", err);
+        console.error("[auth/callback/continue]", err);
         setStatus("error");
         setMessage("Có lỗi xảy ra. Vui lòng thử lại.");
       }
