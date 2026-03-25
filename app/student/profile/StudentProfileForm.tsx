@@ -35,12 +35,14 @@ export default function StudentProfileForm({ initial, redirectTo }: Props) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError("");
     setSuccess(false);
+    setRedirecting(false);
 
     if (initial.profileCompletionRequired) {
       if (!fullName.trim()) {
@@ -70,9 +72,32 @@ export default function StudentProfileForm({ initial, redirectTo }: Props) {
         }),
       });
       const data = (await res.json()) as { ok?: boolean; profileComplete?: boolean; error?: string };
+      // #region agent log
+      fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "cc6d23" },
+        body: JSON.stringify({
+          sessionId: "cc6d23",
+          runId: "student-profile-form-submit",
+          hypothesisId: "H2",
+          location: "app/student/profile/StudentProfileForm.tsx:72",
+          message: "Student profile submit response",
+          data: {
+            status: res.status,
+            ok: Boolean(data.ok),
+            profileComplete: Boolean(data.profileComplete),
+            hasRedirectTo: Boolean(redirectTo),
+            willRedirect: Boolean(data.profileComplete && redirectTo),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       if (res.ok && data.ok) {
+        const willRedirect = Boolean(data.profileComplete && redirectTo);
+        setRedirecting(willRedirect);
         setSuccess(true);
-        if (data.profileComplete && redirectTo) {
+        if (willRedirect) {
           router.push(redirectTo);
         } else {
           router.refresh();
@@ -275,7 +300,7 @@ export default function StudentProfileForm({ initial, redirectTo }: Props) {
       {success && (
         <p className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
           Cập nhật thành công
-          {redirectTo ? " — đang chuyển hướng..." : "."}
+          {redirecting ? " — đang chuyển hướng..." : "."}
         </p>
       )}
 

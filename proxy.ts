@@ -2,8 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { studentProfileNeedsCompletion } from "./lib/student-profile-completion";
 import {
-  STUDENT_PROFILE_COMPLETION_SELECT,
   apiPathRequiresCompleteStudentProfile,
+  fetchStudentProfileCompletion,
   jsonStudentProfileIncomplete,
   pageRequiresCompleteStudentProfile,
 } from "./lib/student-profile-api-guard";
@@ -57,12 +57,42 @@ export async function proxy(request: NextRequest) {
       }
       return redirectToLogin();
     }
-    const { data: completionProfile } = await supabase
-      .from("profiles")
-      .select(STUDENT_PROFILE_COMPLETION_SELECT)
-      .eq("id", user.id)
-      .single();
-    if (studentProfileNeedsCompletion(completionProfile)) {
+    const {
+      profile: completionProfile,
+      error: completionError,
+      degraded,
+    } = await fetchStudentProfileCompletion(supabase, user.id);
+    const needsCompletion = studentProfileNeedsCompletion(completionProfile);
+    // #region agent log
+    fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "cc6d23" },
+      body: JSON.stringify({
+        sessionId: "cc6d23",
+        runId: "proxy-profile-gate",
+        hypothesisId: "H3",
+        location: "proxy.ts:60",
+        message: "Proxy completion gate decision",
+        data: {
+          path: pathname,
+          completionErrorCode: completionError?.code ?? null,
+          degraded,
+          role: (completionProfile as { role?: string | null } | null)?.role ?? null,
+          hasFullName: Boolean(
+            (completionProfile as { full_name?: string | null } | null)?.full_name?.trim()
+          ),
+          hasPhone: Boolean((completionProfile as { phone?: string | null } | null)?.phone?.trim()),
+          hasConsent: Boolean(
+            (completionProfile as { data_sharing_consent_at?: string | null } | null)
+              ?.data_sharing_consent_at
+          ),
+          needsCompletion,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    if (needsCompletion) {
       if (pathname.startsWith("/api/")) {
         return jsonStudentProfileIncomplete();
       }

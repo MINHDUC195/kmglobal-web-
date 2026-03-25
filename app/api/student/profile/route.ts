@@ -9,7 +9,7 @@ import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { validateOrigin } from "../../../../lib/csrf";
 import { checkRateLimit } from "../../../../lib/rate-limit";
 import { studentProfileNeedsCompletion } from "../../../../lib/student-profile-completion";
-import { STUDENT_PROFILE_COMPLETION_SELECT } from "../../../../lib/student-profile-api-guard";
+import { fetchStudentProfileCompletion } from "../../../../lib/student-profile-api-guard";
 
 export async function PATCH(request: NextRequest) {
   if (!validateOrigin(request)) {
@@ -72,33 +72,89 @@ export async function PATCH(request: NextRequest) {
 
   if (Object.keys(updates).length === 0) {
     const admin = getSupabaseAdminClient();
-    const { data: profile } = await admin
-      .from("profiles")
-      .select(STUDENT_PROFILE_COMPLETION_SELECT)
-      .eq("id", user.id)
-      .single();
+    const { profile, error: completionError, degraded } = await fetchStudentProfileCompletion(admin, user.id);
+    const profileComplete = !studentProfileNeedsCompletion(profile);
+    // #region agent log
+    fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "cc6d23" },
+      body: JSON.stringify({
+        sessionId: "cc6d23",
+        runId: "student-profile-patch",
+        hypothesisId: "H5",
+        location: "app/api/student/profile/route.ts:73",
+        message: "No updates branch completion check",
+        data: {
+          updatesCount: 0,
+          completionErrorCode: completionError?.code ?? null,
+          degraded,
+          profileComplete,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return NextResponse.json({
       ok: true,
-      profileComplete: !studentProfileNeedsCompletion(profile),
+      profileComplete,
     });
   }
 
   const admin = getSupabaseAdminClient();
   const { error } = await admin.from("profiles").update(updates).eq("id", user.id);
 
+  // #region agent log
+  fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "cc6d23" },
+    body: JSON.stringify({
+      sessionId: "cc6d23",
+      runId: "student-profile-patch",
+      hypothesisId: "H4",
+      location: "app/api/student/profile/route.ts:87",
+      message: "Applied profile updates",
+      data: {
+        updateKeys: Object.keys(updates),
+        updateErrorCode: error?.code ?? null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
   if (error) {
     console.error("Profile update error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select(STUDENT_PROFILE_COMPLETION_SELECT)
-    .eq("id", user.id)
-    .single();
+  const { profile, error: completionError, degraded } = await fetchStudentProfileCompletion(admin, user.id);
+  const profileComplete = !studentProfileNeedsCompletion(profile);
+
+  // #region agent log
+  fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "cc6d23" },
+    body: JSON.stringify({
+      sessionId: "cc6d23",
+      runId: "student-profile-patch",
+      hypothesisId: "H2",
+      location: "app/api/student/profile/route.ts:94",
+      message: "Completion status after profile update",
+      data: {
+        completionErrorCode: completionError?.code ?? null,
+        degraded,
+        hasFullName: Boolean((profile as { full_name?: string | null } | null)?.full_name?.trim()),
+        hasPhone: Boolean((profile as { phone?: string | null } | null)?.phone?.trim()),
+        hasConsent: Boolean((profile as { data_sharing_consent_at?: string | null } | null)?.data_sharing_consent_at),
+        profileComplete,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   return NextResponse.json({
     ok: true,
-    profileComplete: !studentProfileNeedsCompletion(profile),
+    profileComplete,
   });
 }

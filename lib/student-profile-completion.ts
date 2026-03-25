@@ -8,6 +8,7 @@ export type StudentProfileCompletionRow = {
   address_ward?: string | null;
   address_province?: string | null;
   phone?: string | null;
+  security_signed?: boolean | null;
   data_sharing_consent_at?: string | null;
 } | null;
 
@@ -21,6 +22,7 @@ export function studentProfileNeedsCompletion(profile: StudentProfileCompletionR
   if (profile.profile_completion_required === false) return false;
   if (!profile.full_name?.trim()) return true;
   if (!profile.phone?.trim()) return true;
-  if (!profile.data_sharing_consent_at) return true;
+  const hasConsent = Boolean(profile.data_sharing_consent_at) || profile.security_signed === true;
+  if (!hasConsent) return true;
   return false;
 }

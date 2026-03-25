@@ -5,10 +5,54 @@ import {
   type StudentProfileCompletionRow,
 } from "./student-profile-completion";
 
-/** Cột cần để kiểm tra hồ sơ (đồng bộ với proxy + agree-terms). */
-/** Không gồm profile_completion_required / address_province để tương thích DB chưa chạy migration 20260326120000. */
-export const STUDENT_PROFILE_COMPLETION_SELECT =
-  "role,full_name,address_street_number,address_street_name,address_ward,phone,data_sharing_consent_at";
+const STUDENT_PROFILE_COMPLETION_SELECT_PRIMARY =
+  "role,profile_completion_required,full_name,phone,security_signed,data_sharing_consent_at";
+const STUDENT_PROFILE_COMPLETION_SELECT_FALLBACK = "role,full_name,phone,security_signed";
+
+type SelectableProfileClient = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        single: () => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
+      };
+    };
+  };
+};
+
+export async function fetchStudentProfileCompletion(
+  client: SelectableProfileClient,
+  userId: string
+): Promise<{
+  profile: StudentProfileCompletionRow;
+  error: { message: string; code?: string } | null;
+  degraded: boolean;
+}> {
+  const primary = await client
+    .from("profiles")
+    .select(STUDENT_PROFILE_COMPLETION_SELECT_PRIMARY)
+    .eq("id", userId)
+    .single();
+  if (!primary.error) {
+    return {
+      profile: primary.data as StudentProfileCompletionRow,
+      error: null,
+      degraded: false,
+    };
+  }
+  if (primary.error.code !== "42703") {
+    return { profile: null, error: primary.error, degraded: false };
+  }
+  const fallback = await client
+    .from("profiles")
+    .select(STUDENT_PROFILE_COMPLETION_SELECT_FALLBACK)
+    .eq("id", userId)
+    .single();
+  return {
+    profile: fallback.data as StudentProfileCompletionRow,
+    error: fallback.error,
+    degraded: true,
+  };
+}
 
 export function jsonStudentProfileIncomplete(): NextResponse {
   return NextResponse.json(
@@ -28,16 +72,12 @@ export async function requireCompleteStudentProfileForApi(
   userId: string
 ): Promise<NextResponse | null> {
   const admin = getSupabaseAdminClient();
-  const { data: profile, error } = await admin
-    .from("profiles")
-    .select(STUDENT_PROFILE_COMPLETION_SELECT)
-    .eq("id", userId)
-    .single();
+  const { profile, error } = await fetchStudentProfileCompletion(admin, userId);
   if (error) {
     console.error("student profile completion check:", error.message);
     return NextResponse.json({ error: "Không tải được hồ sơ" }, { status: 500 });
   }
-  if (studentProfileNeedsCompletion(profile as StudentProfileCompletionRow)) {
+  if (studentProfileNeedsCompletion(profile)) {
     return jsonStudentProfileIncomplete();
   }
   return null;
