@@ -19,6 +19,15 @@ type PaymentItem = {
   amount_cents: number;
   amount_display: string;
   invoice_exported_at: string | null;
+  invoice_state:
+    | "not_applicable"
+    | "not_eligible"
+    | "pending_export"
+    | "exported"
+    | "needs_review";
+  invoice_status_label: string;
+  invoice_action_label: string;
+  can_export_invoice: boolean;
   enrollment_only?: boolean;
   orphan_payment?: boolean;
 };
@@ -45,6 +54,8 @@ export default function OwnerInvoicesPage() {
   const [cleanupSuccess, setCleanupSuccess] = useState<string | null>(null);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const loadInFlight = useRef(false);
+  const itemsRef = useRef<PaymentItem[]>([]);
+  itemsRef.current = items;
 
   const orphanCount = useMemo(
     () => items.filter((r) => r.orphan_payment && !r.enrollment_only).length,
@@ -61,7 +72,7 @@ export default function OwnerInvoicesPage() {
     }
     setLoadError(null);
     try {
-      const currentOffset = reset ? 0 : items.length;
+      const currentOffset = reset ? 0 : itemsRef.current.length;
       const res = await fetch(
         `/api/owner/reports/payments?limit=100&offset=${currentOffset}&includeEnrollmentOnly=0`
       );
@@ -99,12 +110,12 @@ export default function OwnerInvoicesPage() {
       }
       loadInFlight.current = false;
     }
-  }, [items.length]);
+  }, []);
 
   async function handleExportInvoice(id: string) {
     if (exporting) return;
     const row = items.find((i) => i.id === id);
-    if (!row || row.payment_status !== "completed" || row.invoice_exported_at) return;
+    if (!row || !row.can_export_invoice) return;
 
     setExportError(null);
     setExporting(id);
@@ -169,23 +180,26 @@ export default function OwnerInvoicesPage() {
 
   const filtered = useMemo(() => {
     return items.filter((row) => {
-      const enrollmentOnly = Boolean(row.enrollment_only);
       if (filter === "all") return true;
-      if (enrollmentOnly) return false;
-      if (row.payment_status !== "completed") return false;
-      if (filter === "vat_pending") return !row.invoice_exported_at;
-      if (filter === "vat_done") return Boolean(row.invoice_exported_at);
+      if (filter === "vat_pending") {
+        return (
+          row.invoice_state === "pending_export" ||
+          row.invoice_state === "needs_review"
+        );
+      }
+      if (filter === "vat_done") return row.invoice_state === "exported";
       return true;
     });
   }, [items, filter]);
 
   const counts = useMemo(() => {
-    const vatEligible = items.filter(
-      (r) => !r.enrollment_only && r.payment_status === "completed"
-    );
     return {
-      pending: vatEligible.filter((r) => !r.invoice_exported_at).length,
-      done: vatEligible.filter((r) => r.invoice_exported_at).length,
+      pending: items.filter(
+        (r) =>
+          r.invoice_state === "pending_export" ||
+          r.invoice_state === "needs_review"
+      ).length,
+      done: items.filter((r) => r.invoice_state === "exported").length,
       all: items.length,
     };
   }, [items]);
@@ -215,7 +229,11 @@ export default function OwnerInvoicesPage() {
       <div className="mt-6 flex flex-wrap gap-2">
         {(
           [
-            ["vat_pending", `Chờ xuất / đối soát (${counts.pending})`, filter === "vat_pending"],
+            [
+              "vat_pending",
+              `Chờ xuất / cần rà soát (${counts.pending})`,
+              filter === "vat_pending",
+            ],
             ["vat_done", `Đã xuất hóa đơn (${counts.done})`, filter === "vat_done"],
             ["all", `Tất cả giao dịch (${counts.all})`, filter === "all"],
           ] as const
@@ -234,9 +252,10 @@ export default function OwnerInvoicesPage() {
           </button>
         ))}
       </div>
+
       {meta && (
         <p className="mt-3 text-xs text-gray-500">
-          Đang hiển thị {items.length}/{meta.total} giao dịch.
+          Đang hiển thị {items.length}/{meta.total} giao dịch (chỉ thanh toán, không gồm đăng ký miễn phí trên trang này).
         </p>
       )}
 
@@ -282,7 +301,7 @@ export default function OwnerInvoicesPage() {
         ) : filtered.length === 0 ? (
           <p className="mt-6 text-gray-500">
             {filter === "vat_pending"
-              ? "Không có giao dịch đã thanh toán nào chờ đánh dấu xuất hóa đơn."
+              ? "Không có giao dịch nào cần xuất hoặc rà soát hóa đơn."
               : filter === "vat_done"
                 ? "Chưa có giao dịch nào được đánh dấu đã xuất hóa đơn."
                 : "Chưa có dữ liệu giao dịch."}
@@ -317,36 +336,22 @@ export default function OwnerInvoicesPage() {
               </thead>
               <tbody>
                 {filtered.map((row) => {
-                  const enrollmentOnly = Boolean(row.enrollment_only);
-                  const canMarkExported =
-                    !enrollmentOnly && row.payment_status === "completed" && !row.invoice_exported_at;
-
-                  let invoiceLabel: string;
-                  // Ưu tiên hiển thị "Đã xuất" nếu đã có mốc export để đồng nhất với trang báo cáo.
-                  if (row.invoice_exported_at) {
-                    invoiceLabel = `Đã xuất — ${formatInvoiceDate(row.invoice_exported_at)}`;
-                  } else if (enrollmentOnly) {
-                    invoiceLabel = "— (không qua thanh toán)";
-                  } else if (row.payment_status !== "completed") {
-                    invoiceLabel = "Chưa đủ điều kiện (chưa thanh toán)";
-                  } else {
-                    invoiceLabel = "Chưa đánh dấu xuất";
-                  }
-
-                  let actionLabel: string;
-                  if (enrollmentOnly || row.payment_status !== "completed") {
-                    actionLabel = "—";
-                  } else if (row.invoice_exported_at) {
-                    actionLabel = "Đã ghi nhận";
-                  } else if (canMarkExported) {
-                    actionLabel = exporting === row.id ? "Đang xử lý..." : "Đánh dấu đã xuất";
-                  } else {
-                    actionLabel = "—";
-                  }
+                  const canMarkExported = row.can_export_invoice;
+                  const invoiceLabel = row.invoice_status_label;
+                  const actionLabel =
+                    canMarkExported && exporting === row.id
+                      ? "Đang xử lý..."
+                      : row.invoice_action_label;
+                  const actionTone =
+                    canMarkExported && exporting !== row.id
+                      ? "bg-[#0e5a77] text-white hover:bg-[#0d4d66]"
+                      : row.invoice_state === "needs_review"
+                        ? "cursor-default bg-amber-100 text-amber-800"
+                        : "cursor-default bg-gray-300 text-gray-600";
 
                   return (
                     <tr
-                      key={enrollmentOnly ? `enr:${row.id}` : row.id}
+                      key={row.enrollment_only ? `enr:${row.id}` : row.id}
                       className={`border-b border-black/10 ${row.orphan_payment ? "bg-amber-50/90" : ""}`}
                     >
                       <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm">
@@ -382,12 +387,10 @@ export default function OwnerInvoicesPage() {
                           type="button"
                           onClick={() => void handleExportInvoice(row.id)}
                           disabled={!canMarkExported || exporting === row.id}
+                          title={row.invoice_status_label}
                           className={`
                           rounded-lg px-3 py-2 text-xs font-medium sm:text-sm
-                          ${canMarkExported && exporting !== row.id
-                            ? "bg-[#0e5a77] text-white hover:bg-[#0d4d66]"
-                            : "cursor-default bg-gray-300 text-gray-600"
-                          }
+                          ${actionTone}
                           disabled:opacity-90 disabled:cursor-not-allowed
                         `}
                         >
@@ -416,18 +419,4 @@ export default function OwnerInvoicesPage() {
       </div>
     </>
   );
-}
-
-function formatInvoiceDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
 }

@@ -19,9 +19,18 @@ type PaymentItem = {
   amount_cents: number;
   amount_display: string;
   invoice_exported_at: string | null;
+  invoice_state:
+    | "not_applicable"
+    | "not_eligible"
+    | "pending_export"
+    | "exported"
+    | "needs_review";
+  invoice_status_label: string;
+  invoice_action_label: string;
+  can_export_invoice: boolean;
   /** Dòng từ đăng ký không qua cổng thanh toán (không có payment) */
   enrollment_only?: boolean;
-  /** Giao dịch payment không còn học viên (user đã xóa trong Auth) */
+  /** Giao dịch payment không còn user trong Auth */
   orphan_payment?: boolean;
 };
 
@@ -44,6 +53,8 @@ export default function OwnerReportsPage() {
   const [cleanupSuccess, setCleanupSuccess] = useState<string | null>(null);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const loadInFlight = useRef(false);
+  const itemsRef = useRef<PaymentItem[]>([]);
+  itemsRef.current = items;
 
   const orphanCount = useMemo(
     () => items.filter((r) => r.orphan_payment && !r.enrollment_only).length,
@@ -60,7 +71,7 @@ export default function OwnerReportsPage() {
     }
     setLoadError(null);
     try {
-      const currentOffset = reset ? 0 : items.length;
+      const currentOffset = reset ? 0 : itemsRef.current.length;
       const res = await fetch(`/api/owner/reports/payments?limit=100&offset=${currentOffset}`);
       const data = await res.json();
       if (res.ok) {
@@ -96,12 +107,12 @@ export default function OwnerReportsPage() {
       }
       loadInFlight.current = false;
     }
-  }, [items.length]);
+  }, []);
 
   async function handleExportInvoice(id: string) {
     if (exporting) return;
     const row = items.find((i) => i.id === id);
-    if (!row || row.payment_status !== "completed" || row.invoice_exported_at) return;
+    if (!row || !row.can_export_invoice) return;
 
     setExportError(null);
     setExporting(id);
@@ -185,6 +196,12 @@ export default function OwnerReportsPage() {
         Báo cáo
       </h1>
 
+      {meta && (
+        <p className="mt-3 text-xs text-gray-500">
+          Đang hiển thị {items.length}/{meta.total} dòng (giao dịch + đăng ký miễn phí / chờ thanh toán).
+        </p>
+      )}
+
       <div className="mt-8 rounded-[2rem] border-2 border-[#0a1628] bg-white p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <h2 className="text-lg font-bold uppercase tracking-wide text-[#0a1628]">
@@ -263,27 +280,20 @@ export default function OwnerReportsPage() {
               </thead>
               <tbody>
                 {items.map((row) => {
-                  const pay = row.payment_status || "";
-                  const enrollmentOnly = Boolean(row.enrollment_only);
-                  const canExportInvoice =
-                    !enrollmentOnly &&
-                    pay === "completed" &&
-                    !row.invoice_exported_at;
-                  let actionLabel: string;
-                  if (enrollmentOnly && pay === "free") {
-                    actionLabel = "—";
-                  } else if (row.invoice_exported_at) {
-                    actionLabel = "Đã xuất";
-                  } else if (canExportInvoice) {
-                    actionLabel = exporting === row.id ? "Đang xử lý..." : "Xuất hóa đơn";
-                  } else if (pay === "pending") {
-                    actionLabel = "Chưa thanh toán";
-                  } else {
-                    actionLabel = "Không thể xuất";
-                  }
+                  const canExportInvoice = row.can_export_invoice;
+                  const actionLabel =
+                    canExportInvoice && exporting === row.id
+                      ? "Đang xử lý..."
+                      : row.invoice_action_label;
+                  const actionTone =
+                    canExportInvoice && exporting !== row.id
+                      ? "bg-[#0e5a77] text-white hover:bg-[#0d4d66]"
+                      : row.invoice_state === "needs_review"
+                        ? "cursor-default bg-amber-100 text-amber-800"
+                        : "cursor-default bg-gray-300 text-gray-600";
                   return (
                     <tr
-                      key={enrollmentOnly ? `enr:${row.id}` : row.id}
+                      key={row.enrollment_only ? `enr:${row.id}` : row.id}
                       className={`border-b border-black/10 ${row.orphan_payment ? "bg-amber-50/90" : ""}`}
                     >
                       <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm">
@@ -322,12 +332,10 @@ export default function OwnerReportsPage() {
                           type="button"
                           onClick={() => void handleExportInvoice(row.id)}
                           disabled={!canExportInvoice || exporting === row.id}
+                          title={row.invoice_status_label}
                           className={`
                           rounded-lg px-3 py-2 text-xs font-medium sm:text-sm
-                          ${canExportInvoice && exporting !== row.id
-                            ? "bg-[#0e5a77] text-white hover:bg-[#0d4d66]"
-                            : "cursor-default bg-gray-300 text-gray-600"
-                          }
+                          ${actionTone}
                           disabled:opacity-90 disabled:cursor-not-allowed
                         `}
                         >
