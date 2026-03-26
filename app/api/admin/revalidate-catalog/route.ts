@@ -5,10 +5,14 @@
  */
 
 import { revalidateTag } from "next/cache";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { validateOrigin } from "@/lib/csrf";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },

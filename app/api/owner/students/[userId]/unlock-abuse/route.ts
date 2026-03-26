@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../../../lib/supabase-admin";
 import { logAuditEvent } from "../../../../../../lib/audit-log";
+import { validateOrigin } from "../../../../../../lib/csrf";
 
 async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const {
@@ -22,9 +23,12 @@ async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupab
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const isOwner = await ensureOwner(supabase);
   if (!isOwner) {

@@ -13,6 +13,7 @@ import {
   parsePageSizeParam,
   totalPagesFromCount,
 } from "../../../../lib/list-pagination";
+import { validateOrigin } from "../../../../lib/csrf";
 
 async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -187,6 +188,9 @@ export async function GET(request: NextRequest) {
  * Body: { userId: string, action: "promote_to_admin" } — Owner phê duyệt nâng học viên lên admin.
  */
 export async function PATCH(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const isOwner = await ensureOwner(supabase);
   if (!isOwner) {
@@ -257,6 +261,9 @@ export async function PATCH(request: NextRequest) {
  * Xóa học viên hoàn toàn khỏi hệ thống (auth.users + profiles + enrollments cascade).
  */
 export async function DELETE(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const isOwner = await ensureOwner(supabase);
   if (!isOwner) {

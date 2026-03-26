@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
+import { validateOrigin } from "../../../../../lib/csrf";
 
 export async function GET(request: NextRequest) {
   const baseCourseId = request.nextUrl.searchParams.get("baseCourseId");
@@ -90,6 +91,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!validateOrigin(request)) {
+      return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+    }
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -152,6 +156,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const baseCourseId = request.nextUrl.searchParams.get("baseCourseId");
   const questionId = request.nextUrl.searchParams.get("questionId");
   if (!baseCourseId || !questionId) {

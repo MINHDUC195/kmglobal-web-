@@ -860,6 +860,7 @@ export type Database = {
           last_session_id: string | null
           must_change_password: boolean | null
           phone: string | null
+          phone_e164: string | null
           phone_verified_at: string | null
           profile_completion_required: boolean
           role: string
@@ -890,6 +891,7 @@ export type Database = {
           last_session_id?: string | null
           must_change_password?: boolean | null
           phone?: string | null
+          phone_e164?: string | null
           phone_verified_at?: string | null
           profile_completion_required?: boolean
           role?: string
@@ -920,6 +922,7 @@ export type Database = {
           last_session_id?: string | null
           must_change_password?: boolean | null
           phone?: string | null
+          phone_e164?: string | null
           phone_verified_at?: string | null
           profile_completion_required?: boolean
           role?: string

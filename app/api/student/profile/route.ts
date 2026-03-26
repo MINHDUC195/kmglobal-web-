@@ -10,6 +10,11 @@ import { validateOrigin } from "../../../../lib/csrf";
 import { checkRateLimit } from "../../../../lib/rate-limit";
 import { studentProfileNeedsCompletion } from "../../../../lib/student-profile-completion";
 import { fetchStudentProfileCompletion } from "../../../../lib/student-profile-api-guard";
+import {
+  isPhoneUniqueViolation,
+  normalizePhoneToE164,
+  PHONE_IN_USE_MESSAGE,
+} from "../../../../lib/phone-normalize";
 
 export async function PATCH(request: NextRequest) {
   if (!validateOrigin(request)) {
@@ -49,7 +54,21 @@ export async function PATCH(request: NextRequest) {
   if (body.fullName !== undefined) updates.full_name = body.fullName?.trim() || null;
   if (body.company !== undefined) updates.company = body.company?.trim() || null;
   if (body.phone !== undefined) {
-    updates.phone = body.phone?.trim() || null;
+    const raw = body.phone?.trim() || "";
+    if (!raw) {
+      updates.phone = null;
+      updates.phone_e164 = null;
+    } else {
+      const e164 = normalizePhoneToE164(raw);
+      if (!e164) {
+        return NextResponse.json(
+          { error: "Số điện thoại không hợp lệ. Dùng dạng trong nước (vd. 09…) hoặc quốc tế (+84…)." },
+          { status: 400 }
+        );
+      }
+      updates.phone = raw;
+      updates.phone_e164 = e164;
+    }
   }
   if (body.gender !== undefined) {
     const g = body.gender?.trim();
@@ -85,6 +104,9 @@ export async function PATCH(request: NextRequest) {
 
   if (error) {
     console.error("Profile update error:", error);
+    if (isPhoneUniqueViolation(error)) {
+      return NextResponse.json({ error: PHONE_IN_USE_MESSAGE }, { status: 409 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

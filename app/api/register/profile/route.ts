@@ -10,6 +10,11 @@ import { cookies } from "next/headers";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { validateOrigin } from "../../../../lib/csrf";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
+import {
+  isPhoneUniqueViolation,
+  normalizePhoneToE164,
+  PHONE_IN_USE_MESSAGE,
+} from "../../../../lib/phone-normalize";
 
 export const maxDuration = 30;
 
@@ -65,6 +70,18 @@ export async function POST(request: NextRequest) {
       gender?: string;
     };
 
+    const phoneTrim = phone?.trim() || "";
+    let phoneE164: string | null = null;
+    if (phoneTrim) {
+      phoneE164 = normalizePhoneToE164(phoneTrim);
+      if (!phoneE164) {
+        return NextResponse.json(
+          { error: "Số điện thoại không hợp lệ. Dùng dạng trong nước (vd. 09…) hoặc quốc tế (+84…)." },
+          { status: 400 }
+        );
+      }
+    }
+
     const admin = getSupabaseAdminClient();
     const { data: existingProfile } = await admin
       .from("profiles")
@@ -83,7 +100,8 @@ export async function POST(request: NextRequest) {
         role: roleToPersist,
         address: address?.trim() || null,
         company: company?.trim() || null,
-        phone: phone?.trim() || null,
+        phone: phoneTrim || null,
+        phone_e164: phoneE164,
         gender: gender || null,
         security_signed: true,
         security_agreed_at: new Date().toISOString(),
@@ -94,6 +112,9 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error("Register profile error:", error);
+      if (isPhoneUniqueViolation(error)) {
+        return NextResponse.json({ error: PHONE_IN_USE_MESSAGE }, { status: 409 });
+      }
       return NextResponse.json(
         { error: "Không thể lưu hồ sơ. Vui lòng thử lại hoặc liên hệ hỗ trợ." },
         { status: 500 }

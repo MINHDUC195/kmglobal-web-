@@ -10,6 +10,30 @@ import { validatePasswordStrength } from "@/lib/password-policy";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { logAuditEvent } from "../../../../lib/audit-log";
+import { validateOrigin } from "@/lib/csrf";
+import {
+  isPhoneUniqueViolation,
+  normalizePhoneToE164,
+  PHONE_IN_USE_MESSAGE,
+} from "@/lib/phone-normalize";
+
+async function assertPhoneAvailable(
+  admin: ReturnType<typeof getSupabaseAdminClient>,
+  phoneE164: string | null,
+  exceptUserId?: string
+): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  if (!phoneE164) return { ok: true };
+  let q = admin.from("profiles").select("id").eq("phone_e164", phoneE164).limit(1);
+  if (exceptUserId) q = q.neq("id", exceptUserId);
+  const { data } = await q.maybeSingle();
+  if (data) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: PHONE_IN_USE_MESSAGE }, { status: 409 }),
+    };
+  }
+  return { ok: true };
+}
 
 async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -64,6 +88,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const auth = await ensureOwner(supabase);
   if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: auth.status });
@@ -87,6 +114,16 @@ export async function POST(request: NextRequest) {
   const password = body.password;
   const fullName = body.full_name?.trim() || body.company?.trim() || "";
   const phone = body.phone?.trim() || "";
+  let phoneE164: string | null = null;
+  if (phone) {
+    phoneE164 = normalizePhoneToE164(phone);
+    if (!phoneE164) {
+      return NextResponse.json(
+        { error: "Số điện thoại không hợp lệ. Dùng dạng trong nước (vd. 09…) hoặc quốc tế (+84…)." },
+        { status: 400 }
+      );
+    }
+  }
   const company = body.company?.trim() || "";
   const idCard = body.id_card?.trim() || "";
   const editableProgramIds = Array.isArray(body.editable_program_ids)
@@ -109,6 +146,9 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = getSupabaseAdminClient();
+
+  const phoneAvail = await assertPhoneAvailable(admin, phoneE164);
+  if (!phoneAvail.ok) return phoneAvail.response;
 
   // Redirect sau khi admin click link xác nhận: agree-terms → /admin
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
@@ -154,11 +194,15 @@ export async function POST(request: NextRequest) {
       full_name: fullName || company || null,
       company: company || null,
       phone: phone || null,
+      phone_e164: phoneE164,
       must_change_password: true,
     })
     .eq("id", newUser.user.id);
 
   if (updateError) {
+    if (isPhoneUniqueViolation(updateError)) {
+      return NextResponse.json({ error: PHONE_IN_USE_MESSAGE }, { status: 409 });
+    }
     return NextResponse.json({
       error: "Tạo admin thành công nhưng cập nhật thông tin thất bại: " + updateError.message,
     }, { status: 500 });
@@ -187,6 +231,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const auth = await ensureOwner(supabase);
   if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: auth.status });
@@ -224,13 +271,34 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {};
   if (body.full_name !== undefined) updates.full_name = body.full_name?.trim() || null;
-  if (body.phone !== undefined) updates.phone = body.phone?.trim() || null;
+  if (body.phone !== undefined) {
+    const raw = body.phone?.trim() || "";
+    if (!raw) {
+      updates.phone = null;
+      updates.phone_e164 = null;
+    } else {
+      const e164 = normalizePhoneToE164(raw);
+      if (!e164) {
+        return NextResponse.json(
+          { error: "Số điện thoại không hợp lệ. Dùng dạng trong nước (vd. 09…) hoặc quốc tế (+84…)." },
+          { status: 400 }
+        );
+      }
+      const phoneAvail = await assertPhoneAvailable(admin, e164, userId);
+      if (!phoneAvail.ok) return phoneAvail.response;
+      updates.phone = raw;
+      updates.phone_e164 = e164;
+    }
+  }
   if (body.company !== undefined) updates.company = body.company?.trim() || null;
   if (body.id_card !== undefined) updates.id_card = body.id_card?.trim() || null;
 
   if (Object.keys(updates).length > 0) {
     const { error } = await admin.from("profiles").update(updates).eq("id", userId);
     if (error) {
+      if (isPhoneUniqueViolation(error)) {
+        return NextResponse.json({ error: PHONE_IN_USE_MESSAGE }, { status: 409 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   }
@@ -266,6 +334,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const auth = await ensureOwner(supabase);
   if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: auth.status });

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { getStaffRole, isAdminOrOwner } from "../../../../lib/staff-auth";
+import { validateOrigin } from "../../../../lib/csrf";
 
 const LOCK_TTL_MINUTES = 30;
 const VALID_TYPES = ["lesson", "chapter"] as const;
@@ -35,6 +36,9 @@ function newExpiresAt(): string {
 }
 
 export async function POST(req: NextRequest) {
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const staff = await getStaffRole(supabase);
   if (!staff || !isAdminOrOwner(staff.role)) {
@@ -146,6 +150,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const staff = await getStaffRole(supabase);
   if (!staff || !isAdminOrOwner(staff.role)) {
@@ -190,6 +197,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const staff = await getStaffRole(supabase);
   if (!staff || !isAdminOrOwner(staff.role)) {

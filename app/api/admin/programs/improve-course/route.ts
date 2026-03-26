@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../../lib/rate-limit";
+import { validateOrigin } from "../../../../../lib/csrf";
 
 export const maxDuration = 300;
 
@@ -23,6 +24,9 @@ async function ensureAdminOrOwner(supabase: Awaited<ReturnType<typeof createServ
 }
 
 export async function POST(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const rl = await checkRateLimit(
     rateLimitKeyFromRequest(request, "improve-course"),
     5,

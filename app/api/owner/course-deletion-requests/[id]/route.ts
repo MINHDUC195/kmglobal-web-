@@ -2,13 +2,17 @@
  * PATCH /api/owner/course-deletion-requests/[id] — Phê duyệt hoặc từ chối xóa khóa (owner)
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
 import { logAuditEvent } from "../../../../../lib/audit-log";
 import { getStaffRole, isOwner } from "../../../../../lib/staff-auth";
+import { validateOrigin } from "../../../../../lib/csrf";
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const staff = await getStaffRole(supabase);
   if (!staff?.userId || !isOwner(staff.role)) {

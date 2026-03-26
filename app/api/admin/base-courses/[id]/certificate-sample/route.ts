@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../../../lib/supabase-admin";
+import { validateOrigin } from "../../../../../../lib/csrf";
 
 const ALLOWED_TYPES = [
   "application/pdf",
@@ -22,6 +23,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!validateOrigin(request)) {
+      return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+    }
     const { id: baseCourseId } = await params;
     if (!baseCourseId) {
       return NextResponse.json({ error: "baseCourseId required" }, { status: 400 });

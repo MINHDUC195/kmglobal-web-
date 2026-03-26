@@ -4,9 +4,10 @@
  * Chỉ owner. enrollments.payment_id được set null theo FK.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { validateOrigin } from "@/lib/csrf";
 
 async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const {
@@ -21,7 +22,10 @@ async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupab
   return (profile as { role?: string } | null)?.role === "owner";
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const isOwner = await ensureOwner(supabase);
   if (!isOwner) {

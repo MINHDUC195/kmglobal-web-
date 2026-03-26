@@ -29,16 +29,23 @@ const securityHeaders = [
     key: "Cross-Origin-Resource-Policy",
     value: "same-site",
   },
-  {
-    key: "Content-Security-Policy",
-    value:
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https:;",
-  },
 ];
+
+const cspDev =
+  "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https:;";
+/** Production: bỏ unsafe-eval để giảm bề mặt XSS nếu có inject script. */
+const cspProd =
+  "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https:;";
 
 const nextConfig: NextConfig = {
   async headers() {
-    const headers = [...securityHeaders];
+    const headers = [
+      ...securityHeaders,
+      {
+        key: "Content-Security-Policy",
+        value: process.env.NODE_ENV === "production" ? cspProd : cspDev,
+      },
+    ];
     if (process.env.NODE_ENV === "production") {
       headers.push({
         key: "Strict-Transport-Security",

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
+import { validateOrigin } from "../../../../../lib/csrf";
 
 async function ensureAdminOrOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -23,6 +24,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   if (!(await ensureAdminOrOwner(supabase))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

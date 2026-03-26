@@ -2,7 +2,8 @@
  * GET/PUT legal page content (owner only).
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { validateOrigin } from "@/lib/csrf";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { logAuditEvent } from "../../../../lib/audit-log";
@@ -48,7 +49,10 @@ export async function GET() {
 
 type PageInput = { intro?: string | null; body?: string };
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const supabase = await createServerSupabaseClient();
   const auth = await ensureOwner(supabase);
   if (!auth.ok || !auth.user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
