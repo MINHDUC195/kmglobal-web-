@@ -120,12 +120,12 @@ export default async function StudentDashboardPage() {
           {list.map((e) => (
             <div
               key={e.id}
-              className="rounded-xl border border-white/10 bg-white/5 px-6 py-5 transition hover:bg-white/10"
+              className="rounded-2xl border border-[#1E365A] bg-gradient-to-br from-[#0d203a] to-[#0a1b33] px-5 py-5 shadow-[0_10px_24px_rgba(0,0,0,0.25)] transition hover:border-[#2A4D77] sm:px-6"
             >
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-white">{e.courseName}</p>
-                  <p className="mt-1 text-sm text-gray-400">
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-white sm:text-lg">{e.courseName}</p>
+                  <p className="mt-1 text-sm text-[#9FB3C8]">
                     Đăng ký:{" "}
                     {e.enrolledAt
                       ? new Date(e.enrolledAt).toLocaleDateString("vi-VN", {
@@ -135,53 +135,57 @@ export default async function StudentDashboardPage() {
                         })
                       : "-"}
                   </p>
-                  {e.daysUntilCourseEnd != null && (
-                    <p className="mt-1 text-xs text-amber-500/90">Còn {e.daysUntilCourseEnd} ngày kết thúc khóa học</p>
-                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {e.daysUntilCourseEnd != null && (
+                      <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
+                        Còn {e.daysUntilCourseEnd} ngày kết thúc
+                      </span>
+                    )}
+                    {e.salePriceCents > 0 && !e.needsPayment && (
+                      <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+                        Đã thanh toán
+                      </span>
+                    )}
+                    {e.salePriceCents <= 0 && (
+                      <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-gray-300">
+                        Miễn phí
+                      </span>
+                    )}
+                  </div>
                   {e.totalLessons > 0 && (
-                    <div className="mt-3">
+                    <div className="mt-4 rounded-xl border border-[#2A4D77] bg-[#0A1A30] px-4 py-3">
                       <ProgressBar
                         completed={e.completedCount}
                         total={e.totalLessons}
                         label="Tiến độ"
-                        className="max-w-md"
+                        className="max-w-xl"
                       />
                     </div>
                   )}
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex shrink-0 flex-col gap-2 lg:min-w-[220px]">
                   <Link
                     href={`/learn/${e.id}`}
-                    className="rounded-full bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-black hover:bg-[#E7C768]"
+                    className="inline-flex items-center justify-center rounded-full bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-black hover:bg-[#E7C768]"
                   >
                     Vào học
                   </Link>
-                  {e.salePriceCents > 0 && !e.needsPayment && (
-                    <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
-                      Đã thanh toán
-                    </span>
-                  )}
-                  {e.salePriceCents <= 0 && (
-                    <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-gray-400">
-                      Miễn phí
-                    </span>
-                  )}
                   {e.needsPayment && (
                     <Link
                       href={`/checkout?courseId=${e.courseId}`}
-                      className="rounded-full border border-amber-500/50 bg-amber-500/10 px-5 py-2.5 text-sm font-semibold text-amber-300 hover:bg-amber-500/20"
+                      className="inline-flex items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/10 px-5 py-2.5 text-sm font-semibold text-amber-200 hover:bg-amber-400/20"
                     >
                       Thanh toán để học tiếp
                     </Link>
                   )}
                 </div>
               </div>
-              <div className="mt-4 border-t border-white/10 pt-4 sm:flex sm:justify-end">
+              <div className="mt-4 border-t border-[#1E365A] pt-4 sm:flex sm:justify-end">
                 <CancelEnrollmentButton
                   enrollmentId={e.id}
                   courseName={e.courseName}
                   variant="onDark"
-                  className="w-full sm:max-w-xl"
+                  className="w-full sm:w-auto"
                 />
               </div>
             </div>
