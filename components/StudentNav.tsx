@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   computeUnreadCount,
   getSeenChangedEventName,
-  markAllQuestionsSeen,
   type QuestionReplySummaryItem,
 } from "../lib/student-question-notifications";
 
@@ -58,10 +57,6 @@ export default function StudentNav() {
     };
   }, [router]);
 
-  function handleQuestionsNavClick() {
-    markAllQuestionsSeen(replySummary);
-  }
-
   return (
     <nav className="border-b border-white/8 bg-white/[0.02]">
       <div className="mx-auto flex max-w-[var(--container-max)] gap-1 px-4 py-2 sm:px-6">
@@ -76,7 +71,6 @@ export default function StudentNav() {
                   ? "bg-[#D4AF37]/10 text-[#D4AF37]"
                   : "text-gray-400 hover:bg-white/5 hover:text-[#D4AF37]"
               }`}
-              onClick={item.href === "/student/questions" ? handleQuestionsNavClick : undefined}
             >
               <span>{item.label}</span>
               {item.href === "/student/questions" && replyCount > 0 && (
