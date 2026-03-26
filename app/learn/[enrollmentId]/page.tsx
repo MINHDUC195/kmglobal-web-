@@ -144,25 +144,23 @@ export default async function LearnPage({ params }: LearnPageProps) {
     <div className="space-y-6">
       {needsPayment && (
         <div className="rounded-xl border border-amber-500/50 bg-amber-50 px-5 py-4">
-          <p className="font-semibold text-amber-900">Chưa thanh toán — truy cập có giới hạn</p>
+          <p className="font-semibold text-amber-900">Bạn Đang Ở Chế Độ Học Thử</p>
           <p className="mt-2 text-sm text-amber-900/90">
-            Với khóa học trả phí, bạn có thể học chương 1 và làm bài tập trong phạm vi chương đó. Từ{" "}
-            <strong>chương 2</strong> trở đi và <strong>bài thi cuối khóa</strong> chỉ mở sau khi hoàn tất
-            thanh toán.
+            Bạn đang ở chế độ học thử và bị hạn chế một số nội dung.
           </p>
-          <p className="mt-3 text-sm font-medium text-[#002b2d]">Quyền lợi khi thanh toán</p>
+          <Link
+            href={checkoutUrl}
+            className="mt-4 inline-block rounded-full bg-[#002b2d] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#004144]"
+          >
+            Nâng cấp
+          </Link>
+          <p className="mt-3 text-sm font-medium text-[#002b2d]">Quyền Lợi khi nâng cấp</p>
           <ul className="mt-1 list-inside list-disc text-sm text-gray-700">
             <li>Được cấp chứng chỉ khi đạt tổng điểm khóa học ≥ {certPassThreshold}%.</li>
             <li>
               Truy cập vĩnh viễn nội dung và tài liệu của khóa học sau khi hoàn tất thanh toán.
             </li>
           </ul>
-          <Link
-            href={checkoutUrl}
-            className="mt-4 inline-block rounded-full bg-[#002b2d] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#004144]"
-          >
-            Thanh toán để tiếp tục học
-          </Link>
         </div>
       )}
 
