@@ -214,6 +214,15 @@ function PreviewLessonContent() {
           />
         </LessonPreviewTopBar>
         <div className="flex flex-1">
+          <LessonPreviewSidebar
+            chapterName={lesson.chapter!.name}
+            chapterLessons={lesson.chapterLessons!}
+            currentLessonId={lessonId}
+            completedLessonIds={lesson.completedLessonIds ?? []}
+            enrollmentId={enrollmentId!}
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+          />
           <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8">
             <h1 className="text-2xl font-bold text-[#002b2d]">{lesson.name}</h1>
             {lesson.description && (
@@ -351,15 +360,6 @@ function PreviewLessonContent() {
               enrollmentId={enrollmentId}
             />
           </main>
-          <LessonPreviewSidebar
-            chapterName={lesson.chapter!.name}
-            chapterLessons={lesson.chapterLessons!}
-            currentLessonId={lessonId}
-            completedLessonIds={lesson.completedLessonIds ?? []}
-            enrollmentId={enrollmentId!}
-            isOpen={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-          />
         </div>
         <Footer hideLogo variant="light" />
       </div>

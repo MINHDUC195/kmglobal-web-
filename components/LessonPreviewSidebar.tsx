@@ -43,7 +43,7 @@ export default function LessonPreviewSidebar({
   }, [isOpen, onClose]);
 
   const sidebarContent = (
-    <div className="flex h-full flex-col border-l border-gray-200 bg-white">
+    <div className="flex h-full flex-col border-r border-gray-200 bg-white">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 lg:justify-start lg:gap-2">
         <Link
           href={`/learn/${enrollmentId}`}
@@ -107,9 +107,9 @@ export default function LessonPreviewSidebar({
       )}
       <aside
         className={`
-          fixed right-0 top-0 z-50 h-full w-72 transform transition-transform duration-200 ease-out
+          fixed left-0 top-0 z-50 h-full w-72 transform transition-transform duration-200 ease-out
           lg:static lg:z-auto lg:block lg:shrink-0 lg:w-72 lg:transform-none
-          ${isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}
+          ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
         {sidebarContent}
