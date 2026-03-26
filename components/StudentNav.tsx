@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  computeUnreadCount,
+  getSeenChangedEventName,
+  markAllQuestionsSeen,
+  type QuestionReplySummaryItem,
+} from "../lib/student-question-notifications";
 
 const navItems = [
   { href: "/student", label: "Trang chủ" },
@@ -13,29 +19,43 @@ const navItems = [
 
 export default function StudentNav() {
   const pathname = usePathname();
-  const [replyCount, setReplyCount] = useState(0);
+  const [replySummary, setReplySummary] = useState<QuestionReplySummaryItem[]>([]);
+  const replyCount = useMemo(() => computeUnreadCount(replySummary), [replySummary]);
 
   useEffect(() => {
-    let cancelled = false;
+    let mounted = true;
 
-    async function loadReplyCount() {
+    async function loadReplySummary() {
       try {
         const res = await fetch("/api/student/questions/reply-count", { cache: "no-store" });
         if (!res.ok) return;
-        const data = (await res.json()) as { count?: number };
-        if (!cancelled) {
-          setReplyCount(Math.max(0, Number(data.count) || 0));
+        const data = (await res.json()) as { items?: QuestionReplySummaryItem[] };
+        if (mounted) {
+          setReplySummary(data.items ?? []);
         }
       } catch {
-        // Keep default 0 badge when request fails.
+        if (mounted) setReplySummary([]);
       }
     }
 
-    void loadReplyCount();
+    void loadReplySummary();
+
+    const seenEventName = getSeenChangedEventName();
+    const handleSeenChanged = () => {
+      if (!mounted) return;
+      setReplySummary((prev) => [...prev]);
+    };
+    window.addEventListener(seenEventName, handleSeenChanged);
+
     return () => {
-      cancelled = true;
+      mounted = false;
+      window.removeEventListener(seenEventName, handleSeenChanged);
     };
   }, []);
+
+  function handleQuestionsNavClick() {
+    markAllQuestionsSeen(replySummary);
+  }
 
   return (
     <nav className="border-b border-white/8 bg-white/[0.02]">
@@ -51,8 +71,9 @@ export default function StudentNav() {
                   ? "bg-[#D4AF37]/10 text-[#D4AF37]"
                   : "text-gray-400 hover:bg-white/5 hover:text-[#D4AF37]"
               }`}
+              onClick={item.href === "/student/questions" ? handleQuestionsNavClick : undefined}
             >
-              {item.label}
+              <span>{item.label}</span>
               {item.href === "/student/questions" && replyCount > 0 && (
                 <span className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
                   {replyCount}
