@@ -120,9 +120,9 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
 
       {/* Nav */}
       <nav className="relative z-20 w-full border-b border-white/8 bg-[#0a1628]/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[var(--container-max)] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-[var(--container-max)] flex-col items-start gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <NavLogoWithBanner />
-          <div className="flex min-w-0 flex-1 items-center justify-end sm:flex-none sm:justify-end">
+          <div className="flex w-full items-center justify-end sm:w-auto sm:flex-none sm:justify-end">
             <HeaderAuthControls />
           </div>
         </div>
