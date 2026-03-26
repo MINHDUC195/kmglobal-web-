@@ -140,7 +140,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
       {/* Hero */}
       <section className="relative z-10 flex flex-col items-center justify-center px-4 py-16 text-center sm:px-6 sm:py-20 lg:py-24">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.35em] text-[#D4AF37]/80">
-          Nền tảng đào tạo tiêu chuẩn quốc tế
+          Nền tảng đào tạo E-Learning chuyên nghiệp
         </p>
         <h1 className="overflow-visible font-[family-name:var(--font-serif)] text-4xl font-bold uppercase leading-tight tracking-[0.05em] sm:text-5xl md:text-6xl lg:text-7xl">
           <span className="block text-white/95">Đào tạo chuyên sâu</span>
@@ -264,22 +264,6 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
               );
             })
             )}
-          </div>
-        </div>
-      </section>
-
-      {/* Why choose us */}
-      <section className="relative z-10 px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
-        <div className="mx-auto max-w-[var(--container-max)]">
-          <SectionHeader eyebrow="Tại sao chọn chúng tôi" title={"Hệ thống đào tạo và đánh giá năng lực\nToàn diện và chuyên nghiệp"} />
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="rounded-xl border border-white/10 bg-white/5 p-6">
-                <h3 className="font-semibold text-[#D4AF37]">{f.title.toUpperCase()}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-400">{f.desc}</p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -436,6 +420,22 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
               </Link>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Why choose us */}
+      <section className="relative z-10 px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
+        <div className="mx-auto max-w-[var(--container-max)]">
+          <SectionHeader eyebrow="Tại sao chọn chúng tôi" title={"Hệ thống đào tạo và đánh giá năng lực\nToàn diện và chuyên nghiệp"} />
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="rounded-xl border border-white/10 bg-white/5 p-6">
+                <h3 className="font-semibold text-[#D4AF37]">{f.title.toUpperCase()}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-400">{f.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
