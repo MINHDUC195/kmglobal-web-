@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ORG_DOMAIN_SCHEMA_MISSING_CODE } from "@/lib/org-domain-schema-error";
 
 function isOrgDomainSchemaMissingResponse(res: Response, body: { code?: string }) {
@@ -41,12 +41,6 @@ export default function OrgDomainClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-
-  const [selectedProgramId, setSelectedProgramId] = useState<string>("");
-  const selectedProgram = useMemo(
-    () => programs.find((p) => p.id === selectedProgramId) ?? null,
-    [programs, selectedProgramId]
-  );
 
   const [domain, setDomain] = useState("");
   const [maxUsers, setMaxUsers] = useState(10);
@@ -119,9 +113,24 @@ export default function OrgDomainClient() {
     });
   }
 
-  function selectAllInProgram() {
-    if (!selectedProgram) return;
-    setSelectedBaseIds(new Set(selectedProgram.base_courses.map((b) => b.id)));
+  function selectAllInProgram(programId: string) {
+    const prog = programs.find((p) => p.id === programId);
+    if (!prog) return;
+    setSelectedBaseIds((prev) => {
+      const n = new Set(prev);
+      for (const b of prog.base_courses) n.add(b.id);
+      return n;
+    });
+  }
+
+  function clearProgramBases(programId: string) {
+    const prog = programs.find((p) => p.id === programId);
+    if (!prog) return;
+    setSelectedBaseIds((prev) => {
+      const n = new Set(prev);
+      for (const b of prog.base_courses) n.delete(b.id);
+      return n;
+    });
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -190,11 +199,6 @@ export default function OrgDomainClient() {
     setYears((j.policy as { unused_expiry_years: number }).unused_expiry_years);
     setStatus(String((j.policy as { status: string }).status ?? "draft"));
     setNotes(String((j.policy as { notes?: string | null }).notes ?? ""));
-    const firstBase = baseIds[0] as string | undefined;
-    if (firstBase && programs.length) {
-      const prog = programs.find((p) => p.base_courses.some((b) => b.id === firstBase));
-      if (prog) setSelectedProgramId(prog.id);
-    }
   }
 
   async function saveDetail() {
@@ -300,11 +304,12 @@ export default function OrgDomainClient() {
       <section>
         <h2 className="text-lg font-semibold text-[#D4AF37]">Tạo policy theo tên miền</h2>
         <p className="mt-1 text-sm text-gray-400">
-          Chọn chương trình → tick khóa học cơ bản (hoặc &quot;Chọn tất cả trong chương trình&quot;). Miễn phí áp
-          theo <strong className="text-gray-200">base course</strong> — mọi khóa thường (regular) cùng base vẫn được
-          miễn phí trong thời hạn.
+          Chọn khóa học cơ bản trong <strong className="text-gray-200">một hoặc nhiều chương trình</strong> (mỗi khối
+          chương trình có &quot;Chọn tất cả&quot; / &quot;Bỏ chọn trong chương trình&quot;). Miễn phí áp theo{" "}
+          <strong className="text-gray-200">base course</strong> — mọi khóa thường (regular) cùng base vẫn được miễn
+          phí trong thời hạn.
         </p>
-        <form onSubmit={handleCreate} className="mt-4 space-y-4 max-w-xl">
+        <form onSubmit={handleCreate} className="mt-4 space-y-4 max-w-3xl">
           <div>
             <label className="block text-sm text-gray-400">Tên miền email (sau @)</label>
             <input
@@ -350,48 +355,60 @@ export default function OrgDomainClient() {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400">Chương trình (lọc)</label>
-            <select
-              className="mt-1 w-full rounded border border-white/15 bg-black/30 px-3 py-2 text-white"
-              value={selectedProgramId}
-              onChange={(e) => setSelectedProgramId(e.target.value)}
-            >
-              <option value="">— Chọn chương trình —</option>
-              {programs.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {selectedProgram && (
-            <div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={selectAllInProgram}
-                  className="rounded border border-[#D4AF37]/50 px-3 py-1.5 text-sm text-[#D4AF37] hover:bg-[#D4AF37]/10"
-                >
-                  Chọn tất cả trong chương trình
-                </button>
-              </div>
-              <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-white/10 p-2">
-                {selectedProgram.base_courses.map((b) => (
-                  <li key={b.id} className="flex items-center gap-2 py-1 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedBaseIds.has(b.id)}
-                      onChange={() => toggleBase(b.id)}
-                    />
-                    <span>
-                      {b.name}{" "}
-                      <span className="text-gray-500">({b.code})</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+            <label className="block text-sm text-gray-400">Chương trình &amp; khóa học cơ bản (chọn nhiều)</label>
+            <div className="mt-2 max-h-[min(28rem,70vh)] space-y-4 overflow-y-auto rounded border border-white/10 p-3 text-sm">
+              {programs.length === 0 ? (
+                <p className="text-gray-500">Chưa có chương trình hoặc khóa cơ bản trong hệ thống.</p>
+              ) : (
+                programs.map((prog) => (
+                  <div key={prog.id} className="border-b border-white/5 pb-4 last:border-0 last:pb-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium text-gray-200">{prog.name}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => selectAllInProgram(prog.id)}
+                          className="rounded border border-[#D4AF37]/50 px-2 py-1 text-xs text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                        >
+                          Chọn tất cả trong chương trình
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => clearProgramBases(prog.id)}
+                          className="rounded border border-white/20 px-2 py-1 text-xs text-gray-400 hover:bg-white/5"
+                        >
+                          Bỏ chọn trong chương trình
+                        </button>
+                      </div>
+                    </div>
+                    {prog.base_courses.length === 0 ? (
+                      <p className="mt-2 text-xs text-gray-500">Chương trình chưa có khóa cơ bản.</p>
+                    ) : (
+                      <ul className="mt-2 pl-1">
+                        {prog.base_courses.map((b) => (
+                          <li key={b.id} className="flex items-center gap-2 py-0.5">
+                            <input
+                              type="checkbox"
+                              checked={selectedBaseIds.has(b.id)}
+                              onChange={() => toggleBase(b.id)}
+                            />
+                            <span>
+                              {b.name} <span className="text-gray-500">({b.code})</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-          )}
+            {programs.length > 0 && (
+              <p className="mt-2 text-xs text-gray-500">
+                Đã chọn {selectedBaseIds.size} khóa cơ bản (có thể thuộc nhiều chương trình).
+              </p>
+            )}
+          </div>
           <div>
             <label className="block text-sm text-gray-400">Ghi chú</label>
             <textarea
@@ -495,13 +512,31 @@ export default function OrgDomainClient() {
             </div>
           </div>
           <p className="mt-3 text-xs text-gray-500">
-            Chọn khóa cơ bản (theo từng chương trình). Lưu để cập nhật.
+            Chọn khóa cơ bản trong một hoặc nhiều chương trình. Lưu để cập nhật.
           </p>
           <div className="mt-2 max-h-64 space-y-4 overflow-y-auto rounded border border-white/10 p-3 text-sm">
             {programs.map((prog) => (
-              <div key={prog.id}>
-                <div className="font-medium text-gray-300">{prog.name}</div>
-                <ul className="mt-1 pl-2">
+              <div key={prog.id} className="border-b border-white/5 pb-3 last:border-0 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-medium text-gray-300">{prog.name}</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => selectAllInProgram(prog.id)}
+                      className="rounded border border-[#D4AF37]/50 px-2 py-1 text-xs text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                    >
+                      Chọn tất cả trong chương trình
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearProgramBases(prog.id)}
+                      className="rounded border border-white/20 px-2 py-1 text-xs text-gray-400 hover:bg-white/5"
+                    >
+                      Bỏ chọn trong chương trình
+                    </button>
+                  </div>
+                </div>
+                <ul className="mt-2 pl-1">
                   {prog.base_courses.map((b) => (
                     <li key={b.id} className="flex items-center gap-2 py-0.5">
                       <input
