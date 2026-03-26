@@ -10,6 +10,7 @@ type LessonBreadcrumbsProps = {
   enrollmentId: string | null;
   prevLessonId?: string | null;
   nextLessonId?: string | null;
+  onNavigateStart?: () => void;
   /** Gọi khi bấm hamburger (mobile) để mở sidebar drawer */
   onMenuClick?: () => void;
 };
@@ -21,6 +22,7 @@ export default function LessonBreadcrumbs({
   enrollmentId,
   prevLessonId,
   nextLessonId,
+  onNavigateStart,
   onMenuClick,
 }: LessonBreadcrumbsProps) {
   const hasContext = enrollmentId && (courseName || chapterName);
@@ -94,6 +96,7 @@ export default function LessonBreadcrumbs({
           {prevLessonId ? (
             <Link
               href={`/learn/preview/${prevLessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`}
+              onClick={onNavigateStart}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2F9E44] text-base font-semibold text-white shadow-sm transition hover:bg-[#2B8A3E]"
               aria-label="Bài trước"
               title="Bài trước"
@@ -112,6 +115,7 @@ export default function LessonBreadcrumbs({
           {nextLessonId ? (
             <Link
               href={`/learn/preview/${nextLessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`}
+              onClick={onNavigateStart}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2F9E44] text-base font-semibold text-white shadow-sm transition hover:bg-[#2B8A3E]"
               aria-label="Bài tiếp theo"
               title="Bài tiếp theo"

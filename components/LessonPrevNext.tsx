@@ -6,12 +6,14 @@ type LessonPrevNextProps = {
   prevLessonId: string | null;
   nextLessonId: string | null;
   enrollmentId: string;
+  onNavigateStart?: () => void;
 };
 
 export default function LessonPrevNext({
   prevLessonId,
   nextLessonId,
   enrollmentId,
+  onNavigateStart,
 }: LessonPrevNextProps) {
   const courseUrl = `/learn/${enrollmentId}`;
 
@@ -20,6 +22,7 @@ export default function LessonPrevNext({
       {prevLessonId ? (
         <Link
           href={`/learn/preview/${prevLessonId}?enrollmentId=${enrollmentId}`}
+          onClick={onNavigateStart}
           className="inline-flex items-center gap-2 rounded-full border border-[#BCCCDC] px-6 py-2.5 text-sm font-semibold text-[#0F2D4A] hover:bg-[#F0F4F8]"
         >
           <span aria-hidden>←</span>
@@ -37,6 +40,7 @@ export default function LessonPrevNext({
       {nextLessonId ? (
         <Link
           href={`/learn/preview/${nextLessonId}?enrollmentId=${enrollmentId}`}
+          onClick={onNavigateStart}
           className="inline-flex items-center gap-2 rounded-full border border-[#0F4C81] bg-[#0F4C81] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#0B3A61]"
         >
           Tiếp theo

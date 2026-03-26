@@ -133,6 +133,12 @@ function PreviewLessonContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const lessonLoadStartedAtRef = useRef<number>(0);
+  const handleNavigateStart = useCallback(() => {
+    setLoading(true);
+    setLesson(null);
+    setQuestions([]);
+    setError("");
+  }, []);
 
   useEffect(() => {
     progressRecorded.current = false;
@@ -405,6 +411,7 @@ function PreviewLessonContent() {
             enrollmentId={enrollmentId}
             prevLessonId={lesson.prevLessonId}
             nextLessonId={lesson.nextLessonId}
+            onNavigateStart={handleNavigateStart}
             onMenuClick={() => setSidebarOpen(true)}
           />
         </LessonPreviewTopBar>
@@ -579,6 +586,7 @@ function PreviewLessonContent() {
                 prevLessonId={lesson.prevLessonId ?? null}
                 nextLessonId={lesson.nextLessonId ?? null}
                 enrollmentId={enrollmentId}
+                onNavigateStart={handleNavigateStart}
               />
             </div>
           </main>
@@ -597,6 +605,7 @@ function PreviewLessonContent() {
           enrollmentId={enrollmentId}
           prevLessonId={lesson.prevLessonId}
           nextLessonId={lesson.nextLessonId}
+          onNavigateStart={handleNavigateStart}
         />
       </LessonPreviewTopBar>
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
