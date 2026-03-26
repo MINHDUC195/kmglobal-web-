@@ -35,10 +35,7 @@ function isCompetitorEmail(email: string) {
 interface RegisterDraft {
   fullName: string;
   email: string;
-  address: string;
-  company: string;
   phone: string;
-  gender: string;
 }
 
 function loadDraft(): RegisterDraft | null {
@@ -76,26 +73,27 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [address, setAddress] = useState("");
-  const [company, setCompany] = useState("");
   const [phone, setPhone] = useState("");
-  const [gender, setGender] = useState<"" | "male" | "female" | "other">("");
   const [securitySigned, setSecuritySigned] = useState(false);
-  const [thirdPartyConsent, setThirdPartyConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [oauthBusy, setOauthBusy] = useState<Provider | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [policyModal, setPolicyModal] = useState<"terms" | "privacy" | null>(null);
 
+  const phoneOk = useMemo(() => {
+    const d = phone.replace(/\D/g, "");
+    return d.length >= 8 && d.length <= 15;
+  }, [phone]);
+
   const canSubmit = useMemo(
     () =>
       fullName.trim().length > 1 &&
       email.trim().length > 5 &&
+      phoneOk &&
       validatePasswordStrength(password).ok &&
-      securitySigned &&
-      thirdPartyConsent,
-    [fullName, email, password, securitySigned, thirdPartyConsent]
+      securitySigned,
+    [fullName, email, phoneOk, password, securitySigned]
   );
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,10 +108,7 @@ export default function RegisterPage() {
     if (draft) {
       setFullName(draft.fullName ?? "");
       setEmail(draft.email ?? "");
-      setAddress(draft.address ?? "");
-      setCompany(draft.company ?? "");
       setPhone(draft.phone ?? "");
-      setGender((draft.gender as "" | "male" | "female" | "other") ?? "");
     }
   }, []);
 
@@ -121,12 +116,9 @@ export default function RegisterPage() {
     saveDraft({
       fullName,
       email,
-      address,
-      company,
       phone,
-      gender,
     });
-  }, [fullName, email, address, company, phone, gender]);
+  }, [fullName, email, phone]);
 
   useEffect(() => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -146,8 +138,14 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!securitySigned || !thirdPartyConsent) {
-      setErrorMessage("Bạn cần tích đủ các xác nhận pháp lý để tiếp tục.");
+    if (!securitySigned) {
+      setErrorMessage("Bạn cần đồng ý Điều khoản sử dụng và Chính sách bảo mật để tiếp tục.");
+      return;
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 8 || phoneDigits.length > 15) {
+      setErrorMessage("Vui lòng nhập số điện thoại hợp lệ (8–15 chữ số).");
       return;
     }
 
@@ -170,10 +168,7 @@ export default function RegisterPage() {
           emailRedirectTo,
           data: {
             full_name: fullName.trim(),
-            address: address.trim() || undefined,
-            company: company.trim() || undefined,
-            phone: phone.trim() || undefined,
-            gender: gender || undefined,
+            phone: phoneDigits,
             security_signed: true,
             security_agreed_at: now,
             data_sharing_consent_at: now,
@@ -205,9 +200,9 @@ export default function RegisterPage() {
   async function handleOAuth(provider: Provider) {
     setErrorMessage("");
     setSuccessMessage("");
-    if (!securitySigned || !thirdPartyConsent) {
+    if (!securitySigned) {
       setErrorMessage(
-        "Vui lòng tích đủ hai mục phía trên (Điều khoản & Chính sách bảo mật, và đồng ý xử lý thông tin khi đăng ký / đăng nhập qua bên thứ ba) trước khi tiếp tục."
+        "Vui lòng tích ô xác nhận Điều khoản sử dụng và Chính sách bảo mật ở cuối biểu mẫu trước khi đăng ký bằng Google."
       );
       return;
     }
@@ -254,11 +249,8 @@ export default function RegisterPage() {
         <h1 className="font-[family-name:var(--font-serif)] text-3xl font-bold text-[#D4AF37]">
           Đăng ký tài khoản
         </h1>
-        <p className="mt-3 text-sm text-gray-300">
-          Đăng ký bằng email hoặc qua Google / Apple / Microsoft. Với tài khoản bên thứ ba, bạn xác nhận đồng ý xử lý dữ liệu ngay tại bước đăng ký (mục thứ hai bên dưới).
-        </p>
         {securityRequired && (
-          <div className="mt-3 rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          <div className="mt-4 rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
             <p className="font-medium">Bạn cần đồng ý chính sách pháp lý để sử dụng hệ thống</p>
             <p className="mt-1 text-amber-100/90">
               Vui lòng tích đủ các ô xác nhận phía dưới trước khi đăng ký.
@@ -266,63 +258,13 @@ export default function RegisterPage() {
           </div>
         )}
 
-        <div className="mt-6 space-y-4">
-          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
-            <input
-              type="checkbox"
-              checked={securitySigned}
-              onChange={(e) => setSecuritySigned(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
-            />
-            <span>
-              Tôi đã đọc và đồng ý với{" "}
-              <button
-                type="button"
-                onClick={() => setPolicyModal("terms")}
-                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
-              >
-                Điều khoản sử dụng
-              </button>{" "}
-              và{" "}
-              <button
-                type="button"
-                onClick={() => setPolicyModal("privacy")}
-                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
-              >
-                Chính sách bảo mật
-              </button>{" "}
-              của KM Global Academy.
-            </span>
-          </label>
-          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
-            <input
-              type="checkbox"
-              checked={thirdPartyConsent}
-              onChange={(e) => setThirdPartyConsent(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
-            />
-            <span>
-              Tôi đồng ý để KM Global Academy xử lý thông tin liên hệ (email, số điện thoại, họ tên và dữ liệu cơ bản)
-              bao gồm thông tin nhận từ Google / Apple / Microsoft khi đăng ký hoặc đăng nhập qua bên thứ ba, theo{" "}
-              <button
-                type="button"
-                onClick={() => setPolicyModal("privacy")}
-                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
-              >
-                Chính sách bảo mật
-              </button>{" "}
-              và quy định pháp luật Việt Nam.
-            </span>
-          </label>
-        </div>
-
         <div className="mt-6 space-y-2">
           {OAUTH_PROVIDERS.map((p) => (
             <button
               key={p.provider}
               type="button"
               onClick={() => void handleOAuth(p.provider)}
-              disabled={Boolean(oauthBusy) || !securitySigned || !thirdPartyConsent}
+              disabled={Boolean(oauthBusy) || !securitySigned}
               className="w-full rounded-full border border-white/20 bg-[#0b1323]/70 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {oauthBusy === p.provider ? "Đang chuyển hướng..." : `Đăng ký với ${p.label}`}
@@ -361,50 +303,16 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">Địa chỉ</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]"
-              placeholder="Địa chỉ (tùy chọn)"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">Công ty / Trường học</label>
-            <input
-              type="text"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]"
-              placeholder="Tên công ty hoặc đơn vị (tùy chọn)"
-            />
-          </div>
-
-          <div>
             <label className="mb-1 block text-sm font-medium text-white/90">Số điện thoại</label>
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]"
-              placeholder="Số điện thoại (tùy chọn)"
+              placeholder="Ví dụ: 0912345678"
+              required
+              autoComplete="tel"
             />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">Giới tính</label>
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value as "" | "male" | "female" | "other")}
-              className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]"
-            >
-              <option value="">Chọn (tùy chọn)</option>
-              <option value="male">Nam</option>
-              <option value="female">Nữ</option>
-              <option value="other">Khác</option>
-            </select>
           </div>
 
           <div>
@@ -423,9 +331,37 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          {(!securitySigned || !thirdPartyConsent) && (
+          <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-[#0b1323]/70 p-3 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={securitySigned}
+              onChange={(e) => setSecuritySigned(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
+            />
+            <span>
+              Tôi đã đọc và đồng ý với{" "}
+              <button
+                type="button"
+                onClick={() => setPolicyModal("terms")}
+                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
+              >
+                Điều khoản sử dụng
+              </button>{" "}
+              và{" "}
+              <button
+                type="button"
+                onClick={() => setPolicyModal("privacy")}
+                className="font-semibold text-[#D4AF37] underline underline-offset-2 hover:text-[#E7C768]"
+              >
+                Chính sách bảo mật
+              </button>{" "}
+              của KM Global Academy.
+            </span>
+          </label>
+
+          {!securitySigned && (
             <p className="rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-              Vui lòng tích đủ các xác nhận pháp lý phía trên để mở nút Đăng ký.
+              Vui lòng đọc kỹ và tích xác nhận điều khoản sử dụng và chính sách bảo mật để mở nút Đăng ký.
             </p>
           )}
 
