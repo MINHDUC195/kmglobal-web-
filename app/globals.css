@@ -20,11 +20,30 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Apply print/copy protection only inside learning area wrapper. */
+.learn-copy-guard {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.learn-copy-guard input,
+.learn-copy-guard textarea,
+.learn-copy-guard [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 @media print {
-  html,
-  body {
+  .learn-print-guard * {
     display: none !important;
-    height: 0 !important;
-    overflow: hidden !important;
+  }
+
+  .learn-print-guard::before {
+    content: "Noi dung khoa hoc khong ho tro in.";
+    display: block;
+    margin: 2rem;
+    color: #111827;
+    font-size: 14pt;
+    font-weight: 600;
   }
 }
