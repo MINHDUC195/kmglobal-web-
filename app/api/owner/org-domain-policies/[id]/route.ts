@@ -7,6 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateOrigin } from "@/lib/csrf";
 import { logAuditEvent } from "@/lib/audit-log";
+import { isOrgDomainSchemaMissingError, orgDomainSchemaMissingJsonResponse } from "@/lib/org-domain-schema-error";
 
 async function ensureOwner() {
   const supabase = await createServerSupabaseClient();
@@ -39,7 +40,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .eq("id", id)
     .maybeSingle();
 
-  if (error || !policy) {
+  if (error) {
+    if (isOrgDomainSchemaMissingError(error)) {
+      return orgDomainSchemaMissingJsonResponse();
+    }
+    return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+  }
+  if (!policy) {
     return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
   }
 
@@ -151,7 +158,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (Object.keys(updates).length > 1) {
     const { error: uErr } = await admin.from("org_domain_policies").update(updates).eq("id", id);
     if (uErr) {
-      return NextResponse.json({ error: uErr.message }, { status: 500 });
+      if (isOrgDomainSchemaMissingError(uErr)) {
+        return orgDomainSchemaMissingJsonResponse();
+      }
+      return NextResponse.json({ error: "Không cập nhật được policy" }, { status: 500 });
     }
   }
 
@@ -169,7 +179,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .from("org_domain_policy_base_courses")
       .insert(baseIds.map((base_course_id) => ({ policy_id: id, base_course_id })));
     if (linkErr) {
-      return NextResponse.json({ error: linkErr.message }, { status: 500 });
+      if (isOrgDomainSchemaMissingError(linkErr)) {
+        return orgDomainSchemaMissingJsonResponse();
+      }
+      return NextResponse.json({ error: "Không cập nhật được khóa cơ bản" }, { status: 500 });
     }
   }
 

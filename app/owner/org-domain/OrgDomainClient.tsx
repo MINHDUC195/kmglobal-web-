@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ORG_DOMAIN_SCHEMA_MISSING_CODE } from "@/lib/org-domain-schema-error";
+
+function isOrgDomainSchemaMissingResponse(res: Response, body: { code?: string }) {
+  return res.status === 503 && body.code === ORG_DOMAIN_SCHEMA_MISSING_CODE;
+}
 
 type ProgramRow = {
   id: string;
@@ -80,6 +85,11 @@ export default function OrgDomainClient() {
       });
       const pl = await plRes.json();
       if (!plRes.ok) {
+        if (isOrgDomainSchemaMissingResponse(plRes, pl)) {
+          setPolicies([]);
+          setWarning(typeof pl.error === "string" ? pl.error : "");
+          return;
+        }
         throw new Error(pl.error || `Không tải được policy (${plRes.status})`);
       }
       if (!Array.isArray(pl.policies)) {
@@ -138,7 +148,13 @@ export default function OrgDomainClient() {
         }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Tạo thất bại");
+      if (!res.ok) {
+        if (isOrgDomainSchemaMissingResponse(res, j)) {
+          setWarning(typeof j.error === "string" ? j.error : "");
+          return;
+        }
+        throw new Error(j.error || "Tạo thất bại");
+      }
       setDomain("");
       setSelectedBaseIds(new Set());
       await load();
@@ -155,6 +171,10 @@ export default function OrgDomainClient() {
     const res = await fetch(`/api/owner/org-domain-policies/${id}`);
     const j = await res.json();
     if (!res.ok) {
+      if (isOrgDomainSchemaMissingResponse(res, j)) {
+        setWarning(typeof j.error === "string" ? j.error : "");
+        return;
+      }
       setErr(j.error || "Không tải chi tiết");
       return;
     }
@@ -194,7 +214,13 @@ export default function OrgDomainClient() {
         }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Lưu thất bại");
+      if (!res.ok) {
+        if (isOrgDomainSchemaMissingResponse(res, j)) {
+          setWarning(typeof j.error === "string" ? j.error : "");
+          return;
+        }
+        throw new Error(j.error || "Lưu thất bại");
+      }
       await load();
       await openDetail(detailId);
     } catch (e) {
@@ -212,7 +238,13 @@ export default function OrgDomainClient() {
         method: "POST",
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Đồng bộ thất bại");
+      if (!res.ok) {
+        if (isOrgDomainSchemaMissingResponse(res, j)) {
+          setWarning(typeof j.error === "string" ? j.error : "");
+          return;
+        }
+        throw new Error(j.error || "Đồng bộ thất bại");
+      }
       alert(`Đã cấp thêm ${j.assigned ?? 0} suất (user đã xác nhận email).`);
       await load();
       if (detailId === policyId) await openDetail(policyId);
@@ -233,7 +265,13 @@ export default function OrgDomainClient() {
         body: JSON.stringify(body),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Cập nhật thất bại");
+      if (!res.ok) {
+        if (isOrgDomainSchemaMissingResponse(res, j)) {
+          setWarning(typeof j.error === "string" ? j.error : "");
+          return;
+        }
+        throw new Error(j.error || "Cập nhật thất bại");
+      }
       if (detailId) await openDetail(detailId);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
@@ -253,7 +291,7 @@ export default function OrgDomainClient() {
           {err}
         </div>
       )}
-      {warning && !err && (
+      {warning && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           {warning}
         </div>

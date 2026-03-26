@@ -8,6 +8,11 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateOrigin } from "@/lib/csrf";
 import { logAuditEvent } from "@/lib/audit-log";
+import {
+  ORG_DOMAIN_SCHEMA_MISSING_VI,
+  isOrgDomainSchemaMissingError,
+  orgDomainSchemaMissingJsonResponse,
+} from "@/lib/org-domain-schema-error";
 
 const BLOCKED_PUBLIC_DOMAINS = new Set([
   "gmail.com",
@@ -40,18 +45,6 @@ function normalizeDomain(raw: string): string | null {
   return t;
 }
 
-/** Bảng chưa tạo / schema cache PostgREST sau migration. */
-function isMissingOrgRelation(err: { message?: string; code?: string } | null): boolean {
-  if (!err) return false;
-  const m = (err.message || "").toLowerCase();
-  return (
-    m.includes("does not exist") ||
-    m.includes("schema cache") ||
-    err.code === "42P01" ||
-    err.code === "PGRST205"
-  );
-}
-
 export async function GET() {
   const auth = await ensureOwner();
   if (!auth.ok) {
@@ -66,11 +59,10 @@ export async function GET() {
 
   if (error) {
     console.error("org_domain_policies list:", error);
-    if (isMissingOrgRelation(error)) {
+    if (isOrgDomainSchemaMissingError(error)) {
       return NextResponse.json({
         policies: [],
-        warning:
-          "CSDL chưa có bảng miễn phí theo domain. Trên Supabase, chạy migration: supabase/migrations/20260328120000_org_domain_entitlements.sql (SQL Editor hoặc supabase db push).",
+        warning: ORG_DOMAIN_SCHEMA_MISSING_VI,
       });
     }
     return NextResponse.json({ error: "Không tải được danh sách" }, { status: 500 });
@@ -84,10 +76,10 @@ export async function GET() {
       .from("org_domain_entitlements")
       .select("*", { count: "exact", head: true })
       .eq("policy_id", pid);
-    if (cErr && !isMissingOrgRelation(cErr)) {
+    if (cErr && !isOrgDomainSchemaMissingError(cErr)) {
       console.error("org_domain_entitlements count:", cErr);
     }
-    counts[pid] = cErr && !isMissingOrgRelation(cErr) ? 0 : count ?? 0;
+    counts[pid] = cErr && !isOrgDomainSchemaMissingError(cErr) ? 0 : count ?? 0;
   }
 
   return NextResponse.json({
@@ -168,8 +160,11 @@ export async function POST(request: NextRequest) {
     if (String(insErr?.code) === "23505") {
       return NextResponse.json({ error: "Tên miền này đã tồn tại." }, { status: 409 });
     }
+    if (isOrgDomainSchemaMissingError(insErr)) {
+      return orgDomainSchemaMissingJsonResponse();
+    }
     console.error("org_domain_policies insert:", insErr);
-    return NextResponse.json({ error: insErr?.message ?? "Không tạo được" }, { status: 500 });
+    return NextResponse.json({ error: "Không tạo được policy" }, { status: 500 });
   }
 
   const policyId = (inserted as { id: string }).id;
@@ -180,6 +175,9 @@ export async function POST(request: NextRequest) {
 
   if (linkErr) {
     await admin.from("org_domain_policies").delete().eq("id", policyId);
+    if (isOrgDomainSchemaMissingError(linkErr)) {
+      return orgDomainSchemaMissingJsonResponse();
+    }
     console.error("org_domain_policy_base_courses insert:", linkErr);
     return NextResponse.json({ error: "Không gắn được khóa học cơ bản" }, { status: 500 });
   }

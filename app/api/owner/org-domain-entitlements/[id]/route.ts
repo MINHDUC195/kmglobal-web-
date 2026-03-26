@@ -8,6 +8,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateOrigin } from "@/lib/csrf";
 import { logAuditEvent } from "@/lib/audit-log";
+import { isOrgDomainSchemaMissingError, orgDomainSchemaMissingJsonResponse } from "@/lib/org-domain-schema-error";
 
 async function ensureOwner() {
   const supabase = await createServerSupabaseClient();
@@ -55,7 +56,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .eq("id", id)
     .maybeSingle();
 
-  if (fErr || !row) {
+  if (fErr) {
+    if (isOrgDomainSchemaMissingError(fErr)) {
+      return orgDomainSchemaMissingJsonResponse();
+    }
+    return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+  }
+  if (!row) {
     return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
   }
 
@@ -89,7 +96,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { error: uErr } = await admin.from("org_domain_entitlements").update(updates).eq("id", id);
   if (uErr) {
-    return NextResponse.json({ error: uErr.message }, { status: 500 });
+    if (isOrgDomainSchemaMissingError(uErr)) {
+      return orgDomainSchemaMissingJsonResponse();
+    }
+    return NextResponse.json({ error: "Không cập nhật được entitlement" }, { status: 500 });
   }
 
   await logAuditEvent({

@@ -9,6 +9,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateOrigin } from "@/lib/csrf";
 import { isAuthEmailConfirmed } from "@/lib/org-domain";
 import { logAuditEvent } from "@/lib/audit-log";
+import { isOrgDomainSchemaMissingError, orgDomainSchemaMissingJsonResponse } from "@/lib/org-domain-schema-error";
 
 async function ensureOwner() {
   const supabase = await createServerSupabaseClient();
@@ -51,7 +52,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .eq("id", policyId)
     .maybeSingle();
 
-  if (pErr || !policy) {
+  if (pErr) {
+    if (isOrgDomainSchemaMissingError(pErr)) {
+      return orgDomainSchemaMissingJsonResponse();
+    }
+    return NextResponse.json({ error: "Không tìm thấy policy" }, { status: 404 });
+  }
+  if (!policy) {
     return NextResponse.json({ error: "Không tìm thấy policy" }, { status: 404 });
   }
 
