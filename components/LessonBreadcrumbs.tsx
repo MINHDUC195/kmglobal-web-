@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { normalizeChapterLabel } from "../lib/chapter-label";
 
 type LessonBreadcrumbsProps = {
   courseName?: string | null;
@@ -19,6 +20,7 @@ export default function LessonBreadcrumbs({
   onMenuClick,
 }: LessonBreadcrumbsProps) {
   const hasContext = enrollmentId && (courseName || chapterName);
+  const chapterLabel = normalizeChapterLabel(chapterName);
 
   if (!hasContext) {
     return (
@@ -59,9 +61,9 @@ export default function LessonBreadcrumbs({
           <Link
             href={`/learn/${enrollmentId}`}
             className="truncate hover:text-[#002b2d] hover:underline"
-            title={chapterName}
+            title={chapterLabel}
           >
-            {chapterName}
+            {chapterLabel}
           </Link>
         </>
       )}

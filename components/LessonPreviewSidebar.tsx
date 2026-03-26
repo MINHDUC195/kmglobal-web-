@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { normalizeChapterLabel } from "../lib/chapter-label";
 
 type ChapterLesson = { id: string; name: string; sort_order: number };
 type LessonPreviewSidebarProps = {
@@ -25,6 +26,7 @@ export default function LessonPreviewSidebar({
 }: LessonPreviewSidebarProps) {
   const completedSet = new Set(completedLessonIds);
   const sortedLessons = [...chapterLessons].sort((a, b) => a.sort_order - b.sort_order);
+  const chapterLabel = normalizeChapterLabel(chapterName);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -48,7 +50,7 @@ export default function LessonPreviewSidebar({
           className="flex items-center gap-2 text-sm font-medium text-[#002b2d] hover:underline"
         >
           <span aria-hidden>←</span>
-          <span className="line-clamp-1">{chapterName}</span>
+          <span className="line-clamp-1">{chapterLabel}</span>
         </Link>
         <button
           type="button"
