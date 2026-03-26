@@ -5,6 +5,12 @@ alwaysApply: true
 
 # OK update — đồng bộ lên môi trường
 
+## Phạm vi — mọi agent / phiên mới
+
+- Quy tắc này nằm trong **workspace** (`kmglobal-web`), `alwaysApply: true` → **mọi** phiên chat hoặc agent mới mở **cùng repo** đều được nạp tự động, **không** phụ thuộc agent cũ đã đóng hay chưa.
+- Đóng một phiên không xóa quy tắc; phiên sau vẫn áp dụng y hệt.
+- Muốn áp dụng **mọi** project trên máy: cần thêm quy tắc tương tự ở **Cursor User Rules** (toàn cục), không chỉ file trong repo này.
+
 ## Khi nào chạy
 
 1. **Mặc định (tự động):** Cuối phiên, khi agent **đã hoàn tất** sửa đổi / cải tiến code hoặc tài sản trong repo và còn **thay đổi chưa commit**, agent **chủ động** chạy quy trình đồng bộ bên dưới — **không** cần user gõ "OK update", trừ các trường hợp ngoại lệ.
