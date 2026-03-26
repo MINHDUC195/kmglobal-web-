@@ -51,46 +51,6 @@ export default function LessonBreadcrumbs({
       className="flex flex-wrap items-center gap-2 text-xs font-medium sm:text-sm"
       aria-label="Breadcrumb"
     >
-      {enrollmentId && (
-        <div className="mr-1 hidden items-center gap-1.5 sm:flex">
-          {prevLessonId ? (
-            <Link
-              href={`/learn/preview/${prevLessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#BCCCDC] bg-white text-[#334E68] transition hover:border-[#829AB1] hover:bg-[#F0F4F8]"
-              aria-label="Bài trước"
-              title="Bài trước"
-            >
-              <span aria-hidden>←</span>
-            </Link>
-          ) : (
-            <span
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#D9E2EC] bg-[#F0F4F8] text-[#9FB3C8]"
-              aria-hidden
-              title="Không có bài trước"
-            >
-              <span aria-hidden>←</span>
-            </span>
-          )}
-          {nextLessonId ? (
-            <Link
-              href={`/learn/preview/${nextLessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#BCCCDC] bg-white text-[#334E68] transition hover:border-[#829AB1] hover:bg-[#F0F4F8]"
-              aria-label="Bài tiếp theo"
-              title="Bài tiếp theo"
-            >
-              <span aria-hidden>→</span>
-            </Link>
-          ) : (
-            <span
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#D9E2EC] bg-[#F0F4F8] text-[#9FB3C8]"
-              aria-hidden
-              title="Không có bài tiếp theo"
-            >
-              <span aria-hidden>→</span>
-            </span>
-          )}
-        </div>
-      )}
       {onMenuClick && (
         <button
           type="button"
@@ -129,6 +89,46 @@ export default function LessonBreadcrumbs({
       >
         {lessonName}
       </span>
+      {enrollmentId && (
+        <div className="ml-auto hidden items-center gap-2 sm:flex">
+          {prevLessonId ? (
+            <Link
+              href={`/learn/preview/${prevLessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2F9E44] text-base font-semibold text-white shadow-sm transition hover:bg-[#2B8A3E]"
+              aria-label="Bài trước"
+              title="Bài trước"
+            >
+              <span aria-hidden>←</span>
+            </Link>
+          ) : (
+            <span
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#8FD19E] text-base font-semibold text-white/90"
+              aria-hidden
+              title="Không có bài trước"
+            >
+              <span aria-hidden>←</span>
+            </span>
+          )}
+          {nextLessonId ? (
+            <Link
+              href={`/learn/preview/${nextLessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2F9E44] text-base font-semibold text-white shadow-sm transition hover:bg-[#2B8A3E]"
+              aria-label="Bài tiếp theo"
+              title="Bài tiếp theo"
+            >
+              <span aria-hidden>→</span>
+            </Link>
+          ) : (
+            <span
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#8FD19E] text-base font-semibold text-white/90"
+              aria-hidden
+              title="Không có bài tiếp theo"
+            >
+              <span aria-hidden>→</span>
+            </span>
+          )}
+        </div>
+      )}
     </nav>
   );
 }
