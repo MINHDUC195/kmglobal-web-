@@ -15,7 +15,7 @@ alwaysApply: true
 
 1. **Mặc định (tự động):** Cuối phiên, khi agent **đã hoàn tất** sửa đổi / cải tiến code hoặc tài sản trong repo và còn **thay đổi chưa commit**, agent **chủ động** chạy quy trình đồng bộ bên dưới — **không** cần user gõ "OK update", trừ các trường hợp ngoại lệ.
 
-2. **Lệnh tường minh:** User vẫn có thể viết **OK update** (hoặc "ok, update", "OK, đồng bộ") để bắt buộc chạy full quy trình hoặc đóng phiên sau khi tự kiểm thử.
+2. **Lệnh tường minh:** User vẫn có thể viết **OK update** (hoặc "ok, update", "OK, đồng bộ") để bắt buộc chạy full quy trình hoặc đóng phiên sau khi tự kiểm thử. Khi đó agent **tự chạy** các bước (git, push, kiểm tra deploy khi có thể) — xem thêm `ok-run.mdc` (OK RUN / tự động hóa).
 
 ## Ngoại lệ — không tự push
 
