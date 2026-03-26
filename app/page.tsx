@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Footer from "../components/Footer";
 import HeaderAuthControls from "../components/HeaderAuthControls";
+import LandingFinalCtaLink from "../components/LandingFinalCtaLink";
 import NavLogoWithBanner from "../components/NavLogoWithBanner";
 import SectionHeader from "../components/SectionHeader";
 import { getSupabaseAdminClient } from "../lib/supabase-admin";
@@ -11,6 +12,8 @@ import { daysUntil } from "../lib/course-lifecycle";
 import { formatPriceDisplay } from "../lib/course-price";
 import { stripRevSuffix } from "../lib/course-display-name";
 import { getBaseCourseIdsToHideForUser } from "../lib/hide-improved-courses-for-old-students";
+
+export const dynamic = "force-dynamic";
 
 type LandingPageProps = {
   searchParams: Promise<{ toast?: string }>;
@@ -65,6 +68,25 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
     else if (role === "admin") finalCtaHref = "/admin";
     else finalCtaHref = "/student";
   }
+
+  // #region agent log
+  fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "56767c" },
+    body: JSON.stringify({
+      sessionId: "56767c",
+      location: "app/page.tsx:LandingPage",
+      message: "final CTA server render",
+      data: {
+        hypothesisId: "H1",
+        hasServerUser: Boolean(user?.id),
+        serverFinalCtaHref: finalCtaHref,
+      },
+      timestamp: Date.now(),
+      runId: "post-fix-verify",
+    }),
+  }).catch(() => {});
+  // #endregion
 
   const enrolledByCourse = new Map<string, string>();
   let baseCourseIdsToHide = new Set<string>();
@@ -466,12 +488,12 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
           <p className="mt-4 text-gray-400">
             Hãy bắt đầu hành trình học tập ngay hôm nay.
           </p>
-          <Link
-            href={finalCtaHref}
+          <LandingFinalCtaLink
+            serverHref={finalCtaHref}
             className="mt-8 inline-block rounded-full bg-gradient-to-r from-[#D4AF37] to-[#B8860B] px-12 py-4 text-base font-bold text-black shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(212,175,55,0.5)]"
           >
             Bắt đầu ngay
-          </Link>
+          </LandingFinalCtaLink>
         </div>
       </section>
       </main>
