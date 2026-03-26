@@ -403,6 +403,8 @@ function PreviewLessonContent() {
             chapterName={lesson.chapter?.name}
             lessonName={lesson.name}
             enrollmentId={enrollmentId}
+            prevLessonId={lesson.prevLessonId}
+            nextLessonId={lesson.nextLessonId}
             onMenuClick={() => setSidebarOpen(true)}
           />
         </LessonPreviewTopBar>
@@ -593,6 +595,8 @@ function PreviewLessonContent() {
         <LessonBreadcrumbs
           lessonName={lesson.name}
           enrollmentId={enrollmentId}
+          prevLessonId={lesson.prevLessonId}
+          nextLessonId={lesson.nextLessonId}
         />
       </LessonPreviewTopBar>
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
