@@ -248,11 +248,15 @@ export default function QuizMultipleChoice({
               {showAnswerDetails && (
                 <span
                   className={`text-xs font-bold ${
-                    isUserSelected ? "text-black" : "text-transparent"
+                    isUserSelected
+                      ? isCorrectOption
+                        ? "text-black"
+                        : "text-red-600"
+                      : "text-transparent"
                   }`}
                   title={isUserSelected ? "Đáp án học viên đã chọn" : undefined}
                 >
-                  ✓
+                  {isUserSelected ? (isCorrectOption ? "✓" : "✕") : "✓"}
                 </span>
               )}
               <span className={optTextCls}>{opt.option_text}</span>
