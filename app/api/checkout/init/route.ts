@@ -22,6 +22,15 @@ import { requireCompleteStudentProfileForApi } from "../../../../lib/student-pro
 import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
 import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
 
+/** Khi migration `checkout_course_id` chưa áp trên Supabase, PostgREST báo lỗi cột / schema cache. */
+function isMissingCheckoutCourseIdColumn(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message ?? "").toLowerCase();
+  return (
+    msg.includes("checkout_course_id") ||
+    (msg.includes("schema cache") && msg.includes("payments"))
+  );
+}
+
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
@@ -243,16 +252,37 @@ export async function POST(request: NextRequest) {
       return null;
     }
 
-    const { data: existingPendingPayment } = await admin
-      .from("payments")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("gateway", gateway)
-      .eq("status", "pending")
-      .eq("checkout_course_id", normalizedCourseId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let existingPendingPayment: { id: string } | null = null;
+    {
+      const r1 = await admin
+        .from("payments")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("gateway", gateway)
+        .eq("status", "pending")
+        .eq("checkout_course_id", normalizedCourseId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (r1.error && isMissingCheckoutCourseIdColumn(r1.error)) {
+        const r2 = await admin
+          .from("payments")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("gateway", gateway)
+          .eq("status", "pending")
+          .contains("metadata", { course_id: normalizedCourseId })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (r2.error) console.error("checkout init existing pending (metadata):", r2.error);
+        existingPendingPayment = r2.data;
+      } else if (r1.error) {
+        console.error("checkout init existing pending:", r1.error);
+      } else {
+        existingPendingPayment = r1.data;
+      }
+    }
     if (existingPendingPayment?.id) {
       const redirectUrl = await buildGatewayRedirect(existingPendingPayment.id);
       if (!redirectUrl) {
@@ -267,25 +297,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ redirectUrl, paymentId: existingPendingPayment.id, reused: true });
     }
 
-    const { data: payment, error: pErr } = await admin
+    const insertBase = {
+      user_id: userId,
+      amount_cents: amountCents,
+      currency: "VND",
+      gateway,
+      gateway_transaction_id: orderId,
+      status: "pending",
+      metadata: { course_id: normalizedCourseId },
+    };
+
+    let { data: payment, error: pErr } = await admin
       .from("payments")
       .insert({
-        user_id: userId,
-        amount_cents: amountCents,
-        currency: "VND",
-        gateway,
-        gateway_transaction_id: orderId,
-        status: "pending",
-        metadata: { course_id: normalizedCourseId },
+        ...insertBase,
         checkout_course_id: normalizedCourseId,
       })
       .select("id")
       .single();
 
+    if (pErr && isMissingCheckoutCourseIdColumn(pErr)) {
+      ({ data: payment, error: pErr } = await admin
+        .from("payments")
+        .insert(insertBase)
+        .select("id")
+        .single());
+    }
+
     let resolvedPaymentId = payment?.id as string | undefined;
 
     if (pErr?.code === "23505") {
-      const { data: afterRace } = await admin
+      const ar1 = await admin
         .from("payments")
         .select("id")
         .eq("user_id", userId)
@@ -295,6 +337,20 @@ export async function POST(request: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      let afterRace = ar1.data;
+      if (ar1.error && isMissingCheckoutCourseIdColumn(ar1.error)) {
+        const ar2 = await admin
+          .from("payments")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("gateway", gateway)
+          .eq("status", "pending")
+          .contains("metadata", { course_id: normalizedCourseId })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        afterRace = ar2.data;
+      }
       resolvedPaymentId = afterRace?.id as string | undefined;
     }
 
