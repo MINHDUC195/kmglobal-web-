@@ -5,7 +5,7 @@
 
 import { PDFDocument, rgb, degrees } from "pdf-lib";
 
-export interface WatermarkOptions {
+interface WatermarkOptions {
   /** Tên hiển thị (user) */
   userName: string;
   /** Email */

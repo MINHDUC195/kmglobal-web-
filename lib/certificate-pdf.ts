@@ -22,7 +22,7 @@ export type CertificateTemplateConfig = {
   certificateCode?: TextFieldConfig;
 };
 
-export type GenerateCertificatePdfInput = {
+type GenerateCertificatePdfInput = {
   certificateCode: string;
   issueDate: Date;
   fullName: string;

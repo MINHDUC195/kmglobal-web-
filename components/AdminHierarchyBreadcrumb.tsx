@@ -16,7 +16,7 @@ type AdminHierarchyBreadcrumbProps = {
  * Đường dẫn nhiều cấp cho khu vực Admin (Chương trình › … › trang hiện tại).
  * Mục cuối không có href — hiển thị dạng chữ trắng đậm.
  */
-export function AdminHierarchyBreadcrumb({ items, className = "" }: AdminHierarchyBreadcrumbProps) {
+function AdminHierarchyBreadcrumb({ items, className = "" }: AdminHierarchyBreadcrumbProps) {
   if (!items.length) return null;
 
   const sep = (

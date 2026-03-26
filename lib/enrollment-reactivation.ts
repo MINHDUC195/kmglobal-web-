@@ -5,13 +5,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ReactivationBlockReason =
+type ReactivationBlockReason =
   | "too_many_cancels"
   | "course_ended"
   | "registration_closed"
   | "registration_not_open";
 
-export async function getCancelCountForCourse(
+async function getCancelCountForCourse(
   admin: SupabaseClient,
   userId: string,
   regularCourseId: string

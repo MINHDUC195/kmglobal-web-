@@ -21,7 +21,7 @@ export type LessonQuestionRow = {
   replies: { id: string; user_id: string; content: string; created_at: string }[];
 };
 
-export type LessonQuestionPageData = {
+type LessonQuestionPageData = {
   rows: LessonQuestionRow[];
   meta: {
     total: number;
@@ -30,17 +30,6 @@ export type LessonQuestionPageData = {
     totalPages: number;
   };
 };
-
-/**
- * Load all lesson Q&A for admin dashboard (enriched with hierarchy + replies).
- */
-export async function loadAllLessonQuestionsForAdmin(): Promise<LessonQuestionRow[]> {
-  const pageData = await loadLessonQuestionsForAdminPage({
-    page: 1,
-    pageSize: 300,
-  });
-  return pageData.rows;
-}
 
 export async function loadLessonQuestionsForAdminPage(params: {
   page?: number;

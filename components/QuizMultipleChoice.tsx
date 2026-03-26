@@ -26,7 +26,7 @@ function optionIdsMatchingDisplay(options: Option[], display: string): Set<strin
   return ids;
 }
 
-export type Option = {
+type Option = {
   id: string;
   option_text: string;
 };

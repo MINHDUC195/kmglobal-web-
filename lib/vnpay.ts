@@ -10,7 +10,7 @@ const TMN_CODE = process.env.VNPAY_TMN_CODE || "";
 const HASH_SECRET = process.env.VNPAY_HASH_SECRET || "";
 const VNPAY_URL = process.env.VNPAY_URL || "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
 
-export type VnpayParams = {
+type VnpayParams = {
   amount: number; // VND
   orderId: string;
   orderInfo: string;
@@ -72,8 +72,4 @@ export function verifyVnpayReturn(query: Record<string, string>): boolean {
   hmac.update(Buffer.from(signData, "utf-8"));
   const expected = hmac.digest("hex");
   return secureHash === expected;
-}
-
-export function isVnpayConfigured(): boolean {
-  return Boolean(TMN_CODE && HASH_SECRET);
 }

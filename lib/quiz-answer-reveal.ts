@@ -1,7 +1,7 @@
 /** So sánh điểm tối đa (tránh lỗi float) */
-export const QUIZ_SCORE_EPS = 1e-6;
+const QUIZ_SCORE_EPS = 1e-6;
 
-export type QuizRevealResult = {
+type QuizRevealResult = {
   isCorrect?: boolean;
   studentAnswerDisplay?: string;
   correctAnswerDisplay?: string;

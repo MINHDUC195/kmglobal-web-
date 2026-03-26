@@ -8,7 +8,7 @@ import { getSupabaseAdminClient } from "./supabase-admin";
 
 const REVALIDATE_SEC = 120;
 
-export type CatalogProgramsRow = {
+type CatalogProgramsRow = {
   id: string;
   name: string;
   code: string | null;
@@ -16,7 +16,7 @@ export type CatalogProgramsRow = {
   base_courses: { id: string; name: string }[] | null;
 };
 
-export type CatalogRegularCourseRow = {
+type CatalogRegularCourseRow = {
   id: string;
   name: string;
   price_cents: number | null;

@@ -8,7 +8,7 @@ import Stripe from "stripe";
 
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || "";
 
-export type StripeCheckoutParams = {
+type StripeCheckoutParams = {
   amountCents: number;
   currency?: string;
   orderId: string;
@@ -17,7 +17,7 @@ export type StripeCheckoutParams = {
   metadata?: Record<string, string>;
 };
 
-export type StripeWebhookResult =
+type StripeWebhookResult =
   | { type: string; data: { object: object } }
   | null;
 
@@ -84,8 +84,4 @@ export async function verifyStripeWebhook(
     console.error("Stripe webhook verify error:", err);
     return null;
   }
-}
-
-export function isStripeConfigured(): boolean {
-  return Boolean(STRIPE_SECRET);
 }

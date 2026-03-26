@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type StaffRole = "owner" | "admin" | "student" | string | null;
+type StaffRole = "owner" | "admin" | "student" | string | null;
 
 export async function getStaffRole(supabase: SupabaseClient): Promise<{ userId: string; role: StaffRole } | null> {
   const {
@@ -10,10 +10,6 @@ export async function getStaffRole(supabase: SupabaseClient): Promise<{ userId: 
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
   const role = (profile as { role?: string } | null)?.role ?? null;
   return { userId: user.id, role };
-}
-
-export function isAdminOnly(role: StaffRole): boolean {
-  return role === "admin";
 }
 
 export function isOwner(role: StaffRole): boolean {

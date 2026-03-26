@@ -39,15 +39,6 @@ export function markQuestionSeen(questionId: string, latestAdminReplyAt: string)
   writeSeenMap(map);
 }
 
-export function markAllQuestionsSeen(items: QuestionReplySummaryItem[]) {
-  if (!items.length) return;
-  const map = readSeenMap();
-  for (const item of items) {
-    map[item.questionId] = item.latestAdminReplyAt;
-  }
-  writeSeenMap(map);
-}
-
 export function computeUnreadCount(items: QuestionReplySummaryItem[]): number {
   if (!items.length) return 0;
   const map = readSeenMap();

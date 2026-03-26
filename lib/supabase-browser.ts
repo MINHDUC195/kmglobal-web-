@@ -1,6 +1,4 @@
 import { createBrowserClient } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../types/database.generated";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -23,12 +21,4 @@ export function getSupabaseBrowserClient() {
     globalThis.__kmglobal_supabase_browser__ = createBrowserClient(supabaseUrl, supabaseAnonKey);
   }
   return globalThis.__kmglobal_supabase_browser__;
-}
-
-/**
- * Opt-in typed client cho module đang migrate dần.
- * Vẫn dùng singleton hiện tại để tránh thay đổi runtime.
- */
-export function getSupabaseBrowserClientTyped(): SupabaseClient<Database> {
-  return getSupabaseBrowserClient() as SupabaseClient<Database>;
 }

@@ -13,7 +13,7 @@ const MOMO_ENDPOINT =
     ? "https://payment.momo.vn/v2/gateway/api/create"
     : "https://test-payment.momo.vn/v2/gateway/api/create";
 
-export type MomoPaymentParams = {
+type MomoPaymentParams = {
   amount: number; // VND
   orderId: string;
   orderInfo: string;
@@ -62,10 +62,6 @@ export async function createMomoPayment(params: MomoPaymentParams): Promise<{ pa
     console.error("MoMo create payment error:", err);
   }
   return null;
-}
-
-export function isMomoConfigured(): boolean {
-  return Boolean(PARTNER_CODE && ACCESS_KEY && SECRET_KEY);
 }
 
 /** MoMo IPN payload format */

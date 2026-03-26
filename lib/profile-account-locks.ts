@@ -4,12 +4,12 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ProfileLockState = {
+type ProfileLockState = {
   accountAbuseLocked: boolean;
   selfTempLockUntil: string | null;
 };
 
-export async function getProfileLockState(
+async function getProfileLockState(
   admin: SupabaseClient,
   userId: string
 ): Promise<ProfileLockState> {

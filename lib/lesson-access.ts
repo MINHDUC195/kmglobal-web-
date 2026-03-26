@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveEnrollmentPaymentAccess } from "./enrollment-payment-status";
 
-export type LessonRecord = {
+type LessonRecord = {
   id: string;
   name: string;
   description: string | null;
@@ -10,7 +10,7 @@ export type LessonRecord = {
   chapter_id: string;
 };
 
-export type MatchedEnrollment = {
+type MatchedEnrollment = {
   id: string;
   payment_id: string | null;
   regular_course_id: string;

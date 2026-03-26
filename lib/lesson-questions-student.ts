@@ -21,10 +21,6 @@ export type StudentLessonQuestionReplyItem = {
   responderRole: string;
 };
 
-export type StudentLessonQuestionThreadItem = StudentLessonQuestionItem & {
-  replies: StudentLessonQuestionReplyItem[];
-};
-
 export async function loadLessonQuestionsForStudent(userId: string): Promise<StudentLessonQuestionItem[]> {
   const admin = getSupabaseAdminClient();
 
@@ -123,54 +119,4 @@ export async function loadLessonQuestionsForStudent(userId: string): Promise<Stu
   }
 
   return items;
-}
-
-export async function loadLessonQuestionThreadsForStudent(
-  userId: string
-): Promise<StudentLessonQuestionThreadItem[]> {
-  const admin = getSupabaseAdminClient();
-  const questions = await loadLessonQuestionsForStudent(userId);
-  if (!questions.length) return [];
-
-  const questionIds = questions.map((q) => q.id);
-  const { data: rawReplies } = await admin
-    .from("lesson_question_replies")
-    .select("id, lesson_question_id, user_id, content, created_at")
-    .in("lesson_question_id", questionIds)
-    .order("created_at", { ascending: true });
-
-  const replies = rawReplies ?? [];
-  const responderIds = [...new Set(replies.map((r) => r.user_id))];
-  const { data: responders } = responderIds.length
-    ? await admin
-        .from("profiles")
-        .select("id, full_name, role")
-        .in("id", responderIds)
-    : { data: [] };
-
-  const responderMap = new Map((responders ?? []).map((p) => [p.id, p]));
-  const grouped = new Map<string, StudentLessonQuestionReplyItem[]>();
-
-  for (const rep of replies) {
-    const responder = responderMap.get(rep.user_id) as
-      | { full_name?: string | null; role?: string | null }
-      | undefined;
-    const role = responder?.role?.trim() || "unknown";
-    const normalizedRole = role === "owner" || role === "admin" ? "admin" : role;
-    const row: StudentLessonQuestionReplyItem = {
-      id: rep.id,
-      content: rep.content,
-      created_at: rep.created_at ?? new Date().toISOString(),
-      responderName: responder?.full_name?.trim() || (normalizedRole === "admin" ? "Admin" : "Thành viên"),
-      responderRole: normalizedRole,
-    };
-    const list = grouped.get(rep.lesson_question_id) ?? [];
-    list.push(row);
-    grouped.set(rep.lesson_question_id, list);
-  }
-
-  return questions.map((q) => ({
-    ...q,
-    replies: grouped.get(q.id) ?? [],
-  }));
 }

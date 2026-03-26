@@ -12,7 +12,7 @@ type PaymentLite = {
  * Tìm payment completed gần nhất cho cùng user + regular course.
  * Dùng để tránh tạo nhiều dòng thanh toán cho cùng một khóa.
  */
-export async function findCompletedPaymentForCourse(
+async function findCompletedPaymentForCourse(
   admin: SupabaseClient,
   userId: string,
   courseId: string

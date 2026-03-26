@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSalePriceCents } from "./course-price";
 
-export type RegularCoursePriceFields = {
+type RegularCoursePriceFields = {
   price_cents?: number | null;
   discount_percent?: number | null;
 };

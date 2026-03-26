@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Chuẩn hóa phần mã từ mã chương trình / khóa học (chữ số, không dấu). */
-export function slugCodePart(raw: string | null | undefined): string {
+function slugCodePart(raw: string | null | undefined): string {
   if (!raw?.trim()) return "X";
   const s = raw
     .normalize("NFD")

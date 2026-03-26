@@ -3,7 +3,7 @@ import type { ProfileRowForLoginRedirect } from "../types/database";
 import type { TypedSupabaseClient } from "./supabase-database";
 import { studentProfileNeedsCompletion } from "./student-profile-completion";
 
-export function getSessionIdFromToken(token?: string | null): string | null {
+function getSessionIdFromToken(token?: string | null): string | null {
   if (!token) return null;
   const segments = token.split(".");
   if (segments.length < 2) return null;
@@ -20,7 +20,7 @@ export function getSessionIdFromToken(token?: string | null): string | null {
 type RouterLike = { push: (href: string) => void };
 
 /** Đích mặc định sau đăng nhập khi không có deep link (`?to=` trống hoặc `/`). */
-export function defaultPostLoginPathForRole(role: string | undefined | null): "/owner" | "/admin" | "/student" {
+function defaultPostLoginPathForRole(role: string | undefined | null): "/owner" | "/admin" | "/student" {
   if (role === "owner") return "/owner";
   if (role === "admin") return "/admin";
   return "/student";

@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { QuizSubmitResult } from "./QuizMultipleChoice";
 import { computeQuizAnswerRevealState } from "../lib/quiz-answer-reveal";
 
-export type Option = {
+type Option = {
   id: string;
   option_text: string;
 };

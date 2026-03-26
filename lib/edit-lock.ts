@@ -4,9 +4,9 @@
 
 const BASE = "/api/admin/edit-locks";
 
-export type LockResourceType = "lesson" | "chapter";
+type LockResourceType = "lesson" | "chapter";
 
-export type AcquireResult =
+type AcquireResult =
   | { ok: true; expiresAt: string }
   | { ok: false; lockedBy: string; expiresAt: string };
 

@@ -11,7 +11,7 @@ import { createHash } from "crypto";
 const LIBRARY_ID = process.env.BUNNY_STREAM_LIBRARY_ID || "";
 const TOKEN_SECURITY_KEY = process.env.BUNNY_STREAM_TOKEN_SECURITY_KEY || "";
 
-export const BUNNY_EMBED_BASE = "https://iframe.mediadelivery.net/embed";
+const BUNNY_EMBED_BASE = "https://iframe.mediadelivery.net/embed";
 
 /**
  * Parse video ID from Bunny URL or return as-is if already an ID
@@ -66,11 +66,4 @@ export function getSignedEmbedUrl(
   const token = createHash("sha256").update(hashInput).digest("hex");
 
   return `${BUNNY_EMBED_BASE}/${libraryId}/${videoId}?token=${token}&expires=${expires}`;
-}
-
-/**
- * Check if Bunny config is available
- */
-export function isBunnyConfigured(): boolean {
-  return Boolean(LIBRARY_ID);
 }
