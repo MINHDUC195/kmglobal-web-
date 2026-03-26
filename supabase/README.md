@@ -13,14 +13,15 @@ Chạy các file SQL trong thư mục `migrations/` theo thứ tự trong **Supa
 
 **Nếu vẫn lỗi:** Dùng `supabase/01_fix_owner_login.sql` – xóa user cũ, tạo mới qua Dashboard, rồi chạy Bước 3.
 
-## Tài khoản Owner cứng
+## Tài khoản Owner bootstrap
 
 Migration `20250112000003_seed_owner.sql` tự động tạo tài khoản:
 - **Email:** admin@kmglobal.net
-- **Password:** Nhatminh1609@
+- **Password:** lấy từ script/migration bootstrap cũ (không dùng mặc định này cho môi trường thật)
 - **Role:** owner
 
 Chạy migration trong Supabase SQL Editor. Nếu user đã tồn tại, chỉ cập nhật role thành owner.
+Ngay sau khi bootstrap, hãy đổi mật khẩu owner trong Supabase Dashboard và không chia sẻ mật khẩu qua repo.
 
 ## Lưu ý
 

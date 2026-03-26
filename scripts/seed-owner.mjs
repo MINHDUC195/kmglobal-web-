@@ -4,11 +4,11 @@
  * Requires: SUPABASE_SERVICE_ROLE_KEY, SEED_OWNER_PASSWORD in env (or .env.local)
  *
  * Windows PowerShell:
- *   $env:SEED_OWNER_PASSWORD="Nhatminh1609@"
+ *   $env:SEED_OWNER_PASSWORD="<your-strong-password>"
  *   node scripts/seed-owner.mjs
  *
  * Linux/Mac:
- *   SEED_OWNER_PASSWORD=Nhatminh1609@ node scripts/seed-owner.mjs
+ *   SEED_OWNER_PASSWORD="<your-strong-password>" node scripts/seed-owner.mjs
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -46,8 +46,8 @@ if (!supabaseUrl || !serviceRoleKey) {
 
 if (!ownerPassword) {
   console.error("Missing SEED_OWNER_PASSWORD. Set it before running:");
-  console.error('  Windows: $env:SEED_OWNER_PASSWORD="Nhatminh1609@"');
-  console.error("  Linux/Mac: SEED_OWNER_PASSWORD=Nhatminh1609@ node scripts/seed-owner.mjs");
+  console.error('  Windows: $env:SEED_OWNER_PASSWORD="<your-strong-password>"');
+  console.error('  Linux/Mac: SEED_OWNER_PASSWORD="<your-strong-password>" node scripts/seed-owner.mjs');
   process.exit(1);
 }
 

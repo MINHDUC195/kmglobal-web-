@@ -52,7 +52,7 @@
 | 1.3 | Phân quyền | `role`: owner, admin, student | `profiles.role` |
 | 1.4 | Chặn đăng ký | Block domain/loại hình: tư vấn ISO, IATF, tổ chức chứng nhận | `app/register/` |
 | 1.5 | Proxy (Next.js 16+) | Bảo vệ route theo role | `proxy.ts` |
-| 1.6 | Chống đăng nhập trùng | Lưu `last_ip`, `last_session`, kiểm tra khi login | `lib/auth-utils.ts` |
+| 1.6 | Chống đăng nhập trùng | Lưu `last_ip`, `last_session`, kiểm tra khi login | `app/login/`, `lib/student-account-guard.ts` |
 | 1.7 | Cam kết bảo mật | Checkbox + lưu timestamp khi đăng ký | `profiles.security_agreed_at` |
 
 ---
