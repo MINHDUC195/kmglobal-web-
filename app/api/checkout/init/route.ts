@@ -61,8 +61,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const userId = user.id;
 
-    const profileBlock = await requireCompleteStudentProfileForApi(user.id);
+    const profileBlock = await requireCompleteStudentProfileForApi(userId);
     if (profileBlock) return profileBlock;
 
     const body = await request.json();
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
     if (!courseId || !gateway) {
       return NextResponse.json({ error: "courseId and gateway required" }, { status: 400 });
     }
+    const normalizedCourseId = courseId;
     if (!["vnpay", "momo", "stripe"].includes(gateway)) {
       return NextResponse.json({ error: "Invalid gateway" }, { status: 400 });
     }
@@ -93,7 +95,7 @@ export async function POST(request: NextRequest) {
     const { data: lockProfile } = await admin
       .from("profiles")
       .select("account_abuse_locked, self_temp_lock_until")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single();
     const lp = lockProfile as {
       account_abuse_locked?: boolean | null;
@@ -125,7 +127,7 @@ export async function POST(request: NextRequest) {
     const { data: existingSameCourse } = await admin
       .from("enrollments")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("regular_course_id", courseId)
       .eq("status", "active")
       .maybeSingle();
@@ -157,7 +159,7 @@ export async function POST(request: NextRequest) {
         ? await admin
             .from("enrollments")
             .select("id")
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .eq("status", "active")
             .in("regular_course_id", rcIds)
             .limit(1)
@@ -181,15 +183,15 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
     if (amountCents <= 0) {
-      const gate = await assertEnrollmentCanActivateAfterPayment(admin, user.id, courseId);
+      const gate = await assertEnrollmentCanActivateAfterPayment(admin, userId, normalizedCourseId);
       if (!gate.ok) {
         return NextResponse.json({ error: gate.reason }, { status: 400 });
       }
-      const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
+      const freePayment = await ensureCompletedFreePaymentForCourse(admin, userId, normalizedCourseId);
       await admin.from("enrollments").upsert(
         {
-          user_id: user.id,
-          regular_course_id: courseId,
+          user_id: userId,
+          regular_course_id: normalizedCourseId,
           payment_id: freePayment.paymentId,
           status: "active",
         },
@@ -198,26 +200,83 @@ export async function POST(request: NextRequest) {
       const { data: enrollment } = await admin
         .from("enrollments")
         .select("id")
-        .eq("user_id", user.id)
-        .eq("regular_course_id", courseId)
+        .eq("user_id", userId)
+        .eq("regular_course_id", normalizedCourseId)
         .single();
       const redirectUrl = enrollment?.id ? `${baseUrl}/learn/${enrollment.id}` : `${baseUrl}/student`;
       return NextResponse.json({ redirectUrl, paymentId: freePayment.paymentId, free: true });
     }
 
-    const orderId = `KM-${Date.now()}-${user.id.slice(0, 8)}`;
+    const orderId = `KM-${Date.now()}-${userId.slice(0, 8)}`;
     const orderInfo = `Thanh toan khoa hoc: ${(course.name as string).slice(0, 100)}`;
+
+    async function buildGatewayRedirect(paymentId: string): Promise<string | null> {
+      if (gateway === "vnpay") {
+        return buildVnpayPaymentUrl({
+          amount: amountVnd || 1000,
+          orderId: paymentId,
+          orderInfo,
+          returnUrl: `${baseUrl}/api/checkout/return/vnpay`,
+        });
+      }
+      if (gateway === "momo") {
+        const momoRes = await createMomoPayment({
+          amount: amountVnd || 1000,
+          orderId: paymentId,
+          orderInfo,
+          returnUrl: `${baseUrl}/checkout/success`,
+          notifyUrl: `${baseUrl}/api/webhook/momo`,
+        });
+        return momoRes?.payUrl ?? null;
+      }
+      if (gateway === "stripe") {
+        const stripeRes = await createStripeCheckout({
+          amountCents: amountCents || 100000,
+          currency: "vnd",
+          orderId: paymentId,
+          successUrl: `${baseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${baseUrl}/checkout/cancel`,
+          metadata: { course_id: normalizedCourseId, user_id: userId },
+        });
+        return stripeRes?.url ?? null;
+      }
+      return null;
+    }
+
+    const { data: existingPendingPayment } = await admin
+      .from("payments")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("gateway", gateway)
+      .eq("status", "pending")
+      .contains("metadata", { course_id: normalizedCourseId })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingPendingPayment?.id) {
+      const redirectUrl = await buildGatewayRedirect(existingPendingPayment.id);
+      if (!redirectUrl) {
+        return NextResponse.json({ error: `Cổng ${gateway} chưa được cấu hình` }, { status: 400 });
+      }
+      if (idempotencyKey) {
+        await setCheckoutIdempotency(idempotencyKey, {
+          redirectUrl,
+          paymentId: existingPendingPayment.id,
+        });
+      }
+      return NextResponse.json({ redirectUrl, paymentId: existingPendingPayment.id, reused: true });
+    }
 
     const { data: payment, error: pErr } = await admin
       .from("payments")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         amount_cents: amountCents,
         currency: "VND",
         gateway,
         gateway_transaction_id: orderId,
         status: "pending",
-        metadata: { course_id: courseId },
+        metadata: { course_id: normalizedCourseId },
       })
       .select("id")
       .single();
@@ -228,33 +287,7 @@ export async function POST(request: NextRequest) {
 
     let redirectUrl: string | null = null;
 
-    if (gateway === "vnpay") {
-      redirectUrl = buildVnpayPaymentUrl({
-        amount: amountVnd || 1000,
-        orderId: payment.id,
-        orderInfo,
-        returnUrl: `${baseUrl}/api/checkout/return/vnpay`,
-      });
-    } else if (gateway === "momo") {
-      const momoRes = await createMomoPayment({
-        amount: amountVnd || 1000,
-        orderId: payment.id,
-        orderInfo,
-        returnUrl: `${baseUrl}/checkout/success`,
-        notifyUrl: `${baseUrl}/api/webhook/momo`,
-      });
-      redirectUrl = momoRes?.payUrl ?? null;
-    } else if (gateway === "stripe") {
-      const stripeRes = await createStripeCheckout({
-        amountCents: amountCents || 100000,
-        currency: "vnd",
-        orderId: payment.id,
-        successUrl: `${baseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${baseUrl}/checkout/cancel`,
-        metadata: { course_id: courseId, user_id: user.id },
-      });
-      redirectUrl = stripeRes?.url ?? null;
-    }
+    redirectUrl = await buildGatewayRedirect(payment.id);
 
     if (!redirectUrl) {
       return NextResponse.json({ error: `Cổng ${gateway} chưa được cấu hình` }, { status: 400 });

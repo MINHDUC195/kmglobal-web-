@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyVnpayReturn } from "../../../../../lib/vnpay";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
-import { assertEnrollmentCanActivateAfterPayment } from "../../../../../lib/enrollment-payment-activate";
+import { activateEnrollmentFromPayment } from "../../../../../lib/activate-enrollment-from-payment";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -40,51 +40,53 @@ export async function GET(request: NextRequest) {
     .eq("id", vnp_TxnRef)
     .eq("gateway", "vnpay")
     .eq("status", "pending")
-    .select("user_id, metadata")
+    .select("id, user_id, metadata, status")
     .single();
 
-  if (pErr || !payment) {
-    return NextResponse.redirect(new URL("/checkout/failed?reason=update_failed", request.url));
+  let normalizedPayment = payment as
+    | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
+    | null;
+
+  if (pErr || !normalizedPayment) {
+    // Idempotent refresh/retry: payment may already be completed.
+    const { data: existingPayment } = await admin
+      .from("payments")
+      .select("id, user_id, metadata, status")
+      .eq("id", vnp_TxnRef)
+      .eq("gateway", "vnpay")
+      .maybeSingle();
+    const existing = existingPayment as
+      | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
+      | null;
+    if (!existing || existing.status !== "completed") {
+      return NextResponse.redirect(new URL("/checkout/failed?reason=update_failed", request.url));
+    }
+    normalizedPayment = existing;
   }
 
-  const metadata = payment.metadata as { course_id?: string } | null;
+  const metadata = normalizedPayment.metadata as { course_id?: string } | null;
   const courseId = metadata?.course_id;
-  if (courseId && payment.user_id) {
-    const gate = await assertEnrollmentCanActivateAfterPayment(
+  let enrollmentId: string | null = null;
+  if (courseId && normalizedPayment.user_id) {
+    const activated = await activateEnrollmentFromPayment(
       admin,
-      payment.user_id,
+      vnp_TxnRef,
+      normalizedPayment.user_id,
       courseId
     );
-    if (!gate.ok) {
-      console.error("VNPay enrollment blocked:", gate.reason);
+    if (!activated.ok) {
+      console.error("VNPay enrollment blocked:", activated.reason);
       return NextResponse.redirect(
         new URL(`/checkout/failed?reason=enrollment_blocked`, request.url)
       );
     }
-    await admin.from("enrollments").upsert(
-      {
-        user_id: payment.user_id,
-        regular_course_id: courseId,
-        payment_id: vnp_TxnRef,
-        status: "active",
-      },
-      { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
-    );
+    enrollmentId = activated.enrollmentId;
   }
-
-  const { data: enrollment } = courseId
-    ? await admin
-        .from("enrollments")
-        .select("id")
-        .eq("user_id", payment.user_id)
-        .eq("regular_course_id", courseId)
-        .single()
-    : { data: null };
 
   const baseUrl = request.nextUrl.origin;
   const redirect =
-    enrollment?.id
-      ? `${baseUrl}/learn/${enrollment.id}`
+    enrollmentId
+      ? `${baseUrl}/learn/${enrollmentId}`
       : `${baseUrl}/student`;
 
   return NextResponse.redirect(redirect);

@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyStripeWebhook } from "../../../../lib/stripe";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
-import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
+import { activateEnrollmentFromPayment } from "../../../../lib/activate-enrollment-from-payment";
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,26 +49,36 @@ export async function POST(request: NextRequest) {
       .eq("id", orderId)
       .eq("status", "pending")
       .eq("gateway", "stripe")
-      .select("user_id")
+      .select("id, user_id, metadata, status")
       .single();
 
-    if (pErr || !payment) {
-      return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+    let normalizedPayment = payment as
+      | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
+      | null;
+    if (pErr || !normalizedPayment) {
+      const { data: existingPayment } = await admin
+        .from("payments")
+        .select("id, user_id, metadata, status")
+        .eq("id", orderId)
+        .eq("gateway", "stripe")
+        .maybeSingle();
+      const existing = existingPayment as
+        | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
+        | null;
+      if (!existing || existing.status !== "completed") {
+        return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+      }
+      normalizedPayment = existing;
     }
 
-    const gate = await assertEnrollmentCanActivateAfterPayment(admin, userId, courseId);
-    if (!gate.ok) {
-      console.error("Stripe enrollment blocked:", gate.reason);
-    } else {
-      await admin.from("enrollments").upsert(
-        {
-          user_id: userId,
-          regular_course_id: courseId,
-          payment_id: orderId,
-          status: "active",
-        },
-        { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
-      );
+    const paymentMetadata = normalizedPayment.metadata as { course_id?: string } | null;
+    if (normalizedPayment.user_id !== userId || paymentMetadata?.course_id !== courseId) {
+      return NextResponse.json({ error: "Payment metadata mismatch" }, { status: 400 });
+    }
+
+    const activated = await activateEnrollmentFromPayment(admin, orderId, userId, courseId);
+    if (!activated.ok) {
+      console.error("Stripe enrollment blocked:", activated.reason);
     }
 
     return NextResponse.json({ received: true });

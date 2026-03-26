@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMomoIpn, type MomoIpnPayload } from "../../../../lib/momo";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
-import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
+import { activateEnrollmentFromPayment } from "../../../../lib/activate-enrollment-from-payment";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,33 +33,39 @@ export async function POST(request: NextRequest) {
       .eq("id", body.orderId)
       .eq("status", "pending")
       .eq("gateway", "momo")
-      .select("user_id, metadata")
+      .select("id, user_id, metadata, status")
       .single();
 
-    if (pErr || !payment) {
-      return new NextResponse(null, { status: 204 });
+    let normalizedPayment = payment as
+      | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
+      | null;
+    if (pErr || !normalizedPayment) {
+      const { data: existingPayment } = await admin
+        .from("payments")
+        .select("id, user_id, metadata, status")
+        .eq("id", body.orderId)
+        .eq("gateway", "momo")
+        .maybeSingle();
+      const existing = existingPayment as
+        | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
+        | null;
+      if (!existing || existing.status !== "completed") {
+        return new NextResponse(null, { status: 204 });
+      }
+      normalizedPayment = existing;
     }
 
-    const metadata = payment.metadata as { course_id?: string } | null;
+    const metadata = normalizedPayment.metadata as { course_id?: string } | null;
     const courseId = metadata?.course_id;
-    if (courseId && payment.user_id) {
-      const gate = await assertEnrollmentCanActivateAfterPayment(
+    if (courseId && normalizedPayment.user_id) {
+      const activated = await activateEnrollmentFromPayment(
         admin,
-        payment.user_id,
+        body.orderId,
+        normalizedPayment.user_id,
         courseId
       );
-      if (!gate.ok) {
-        console.error("MoMo enrollment blocked:", gate.reason);
-      } else {
-        await admin.from("enrollments").upsert(
-          {
-            user_id: payment.user_id,
-            regular_course_id: courseId,
-            payment_id: body.orderId,
-            status: "active",
-          },
-          { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
-        );
+      if (!activated.ok) {
+        console.error("MoMo enrollment blocked:", activated.reason);
       }
     }
 
