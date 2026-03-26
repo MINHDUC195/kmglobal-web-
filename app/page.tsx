@@ -53,6 +53,19 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let finalCtaHref: "/login" | "/student" | "/admin" | "/owner" = "/login";
+  if (user?.id) {
+    const { data: profileForCta } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const role = (profileForCta as { role?: string } | null)?.role;
+    if (role === "owner") finalCtaHref = "/owner";
+    else if (role === "admin") finalCtaHref = "/admin";
+    else finalCtaHref = "/student";
+  }
+
   const enrolledByCourse = new Map<string, string>();
   let baseCourseIdsToHide = new Set<string>();
 
@@ -454,7 +467,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
             Hãy bắt đầu hành trình học tập ngay hôm nay.
           </p>
           <Link
-            href="/login"
+            href={finalCtaHref}
             className="mt-8 inline-block rounded-full bg-gradient-to-r from-[#D4AF37] to-[#B8860B] px-12 py-4 text-base font-bold text-black shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(212,175,55,0.5)]"
           >
             Bắt đầu ngay
