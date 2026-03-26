@@ -11,10 +11,14 @@ type Program = {
   approval_status?: "draft" | "pending" | "approved" | null;
 };
 
+const PAGE_SIZE = 10;
+
 export default function OwnerProgramsPage() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [actioning, setActioning] = useState<string | null>(null);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [approvedPage, setApprovedPage] = useState(1);
 
   async function loadPrograms() {
     setLoading(true);
@@ -76,6 +80,18 @@ export default function OwnerProgramsPage() {
 
   const pending = programs.filter((p) => (p.approval_status ?? "draft") === "pending");
   const approved = programs.filter((p) => (p.approval_status ?? "draft") === "approved");
+  const pendingTotalPages = Math.max(1, Math.ceil(pending.length / PAGE_SIZE));
+  const approvedTotalPages = Math.max(1, Math.ceil(approved.length / PAGE_SIZE));
+  const pendingSlice = pending.slice((pendingPage - 1) * PAGE_SIZE, pendingPage * PAGE_SIZE);
+  const approvedSlice = approved.slice((approvedPage - 1) * PAGE_SIZE, approvedPage * PAGE_SIZE);
+
+  useEffect(() => {
+    if (pendingPage > pendingTotalPages) setPendingPage(pendingTotalPages);
+  }, [pendingPage, pendingTotalPages]);
+
+  useEffect(() => {
+    if (approvedPage > approvedTotalPages) setApprovedPage(approvedTotalPages);
+  }, [approvedPage, approvedTotalPages]);
 
   return (
     <>
@@ -112,7 +128,7 @@ export default function OwnerProgramsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {pending.map((p) => (
+                      {pendingSlice.map((p) => (
                         <tr key={p.id} className="text-gray-300">
                           <td className="px-4 py-3">{p.name}</td>
                           <td className="px-4 py-3">{p.code || "-"}</td>
@@ -148,6 +164,31 @@ export default function OwnerProgramsPage() {
                     </tbody>
                   </table>
                 </div>
+                {pending.length > PAGE_SIZE && (
+                  <div className="mt-3 flex items-center justify-between text-sm text-gray-400">
+                    <span>
+                      Trang {pendingPage}/{pendingTotalPages} · Tổng {pending.length} mục
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                        disabled={pendingPage <= 1}
+                        className="rounded border border-white/20 px-3 py-1 disabled:opacity-40"
+                      >
+                        ← Trước
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingPage((p) => Math.min(pendingTotalPages, p + 1))}
+                        disabled={pendingPage >= pendingTotalPages}
+                        className="rounded border border-white/20 px-3 py-1 disabled:opacity-40"
+                      >
+                        Sau →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -167,7 +208,7 @@ export default function OwnerProgramsPage() {
                   </thead>
                   <tbody className="divide-y divide-white/5">
                     {approved.length ? (
-                      approved.map((p) => (
+                      approvedSlice.map((p) => (
                         <tr key={p.id} className="text-gray-300">
                           <td className="px-4 py-3">{p.name}</td>
                           <td className="px-4 py-3">{p.code || "-"}</td>
@@ -202,6 +243,31 @@ export default function OwnerProgramsPage() {
                   </tbody>
                 </table>
               </div>
+              {approved.length > PAGE_SIZE && (
+                <div className="mt-3 flex items-center justify-between text-sm text-gray-400">
+                  <span>
+                    Trang {approvedPage}/{approvedTotalPages} · Tổng {approved.length} mục
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setApprovedPage((p) => Math.max(1, p - 1))}
+                      disabled={approvedPage <= 1}
+                      className="rounded border border-white/20 px-3 py-1 disabled:opacity-40"
+                    >
+                      ← Trước
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setApprovedPage((p) => Math.min(approvedTotalPages, p + 1))}
+                      disabled={approvedPage >= approvedTotalPages}
+                      className="rounded border border-white/20 px-3 py-1 disabled:opacity-40"
+                    >
+                      Sau →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

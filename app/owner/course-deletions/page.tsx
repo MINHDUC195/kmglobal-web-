@@ -21,8 +21,12 @@ type PendingRequest = {
   } | null;
 };
 
+type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
+
 export default function OwnerCourseDeletionsPage() {
   const [requests, setRequests] = useState<PendingRequest[]>([]);
+  const [meta, setMeta] = useState<PageMeta | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
@@ -31,21 +35,24 @@ export default function OwnerCourseDeletionsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/owner/course-deletion-requests");
+      const res = await fetch(`/api/owner/course-deletion-requests?page=${page}&pageSize=20`);
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Không tải được.");
         setRequests([]);
+        setMeta(null);
         return;
       }
       setRequests(data.requests ?? []);
+      setMeta((data.meta as PageMeta | undefined) ?? null);
     } catch {
       setError("Lỗi mạng.");
       setRequests([]);
+      setMeta(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     void load();
@@ -106,52 +113,79 @@ export default function OwnerCourseDeletionsPage() {
           Không có yêu cầu xóa nào đang chờ.
         </p>
       ) : (
-        <ul className="mt-8 space-y-4">
-          {requests.map((r) => {
-            const rc = r.regular_course;
-            return (
-              <li
-                key={r.id}
-                className="rounded-xl border border-white/10 bg-white/5 p-5 sm:flex sm:items-start sm:justify-between sm:gap-6"
-              >
-                <div>
-                  <h2 className="font-semibold text-white">{rc?.name ?? "Khóa học"}</h2>
-                  <p className="mt-1 text-sm text-gray-400">
-                    {rc?.program?.name ?? "—"} · {rc?.base_course?.name ?? "—"}{" "}
-                    {rc?.base_course?.code ? `(${rc.base_course.code})` : ""}
-                  </p>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Đề nghị lúc {new Date(r.created_at).toLocaleString("vi-VN")} · Người gửi:{" "}
-                    {r.requester_email ?? r.requested_by.slice(0, 8) + "…"}
-                  </p>
-                  {r.reason && (
-                    <p className="mt-3 rounded-lg border border-white/10 bg-[#0a1628]/80 px-3 py-2 text-sm text-gray-300">
-                      Lý do: {r.reason}
+        <div className="mt-8 space-y-4">
+          <ul className="space-y-4">
+            {requests.map((r) => {
+              const rc = r.regular_course;
+              return (
+                <li
+                  key={r.id}
+                  className="rounded-xl border border-white/10 bg-white/5 p-5 sm:flex sm:items-start sm:justify-between sm:gap-6"
+                >
+                  <div>
+                    <h2 className="font-semibold text-white">{rc?.name ?? "Khóa học"}</h2>
+                    <p className="mt-1 text-sm text-gray-400">
+                      {rc?.program?.name ?? "—"} · {rc?.base_course?.name ?? "—"}{" "}
+                      {rc?.base_course?.code ? `(${rc.base_course.code})` : ""}
                     </p>
-                  )}
-                </div>
-                <div className="mt-4 flex shrink-0 flex-wrap gap-2 sm:mt-0">
-                  <button
-                    type="button"
-                    disabled={acting === r.id}
-                    onClick={() => void handleAction(r.id, "reject")}
-                    className="rounded-full border border-white/25 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/10 disabled:opacity-50"
-                  >
-                    Từ chối
-                  </button>
-                  <button
-                    type="button"
-                    disabled={acting === r.id}
-                    onClick={() => void handleAction(r.id, "approve")}
-                    className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-black hover:bg-[#e4c657] disabled:opacity-50"
-                  >
-                    {acting === r.id ? "Đang xử lý..." : "Phê duyệt & xóa"}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Đề nghị lúc {new Date(r.created_at).toLocaleString("vi-VN")} · Người gửi:{" "}
+                      {r.requester_email ?? r.requested_by.slice(0, 8) + "…"}
+                    </p>
+                    {r.reason && (
+                      <p className="mt-3 rounded-lg border border-white/10 bg-[#0a1628]/80 px-3 py-2 text-sm text-gray-300">
+                        Lý do: {r.reason}
+                      </p>
+                    )}
+                  </div>
+                  <div className="mt-4 flex shrink-0 flex-wrap gap-2 sm:mt-0">
+                    <button
+                      type="button"
+                      disabled={acting === r.id}
+                      onClick={() => void handleAction(r.id, "reject")}
+                      className="rounded-full border border-white/25 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Từ chối
+                    </button>
+                    <button
+                      type="button"
+                      disabled={acting === r.id}
+                      onClick={() => void handleAction(r.id, "approve")}
+                      className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-black hover:bg-[#e4c657] disabled:opacity-50"
+                    >
+                      {acting === r.id ? "Đang xử lý..." : "Phê duyệt & xóa"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {meta && meta.totalPages > 1 && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-gray-500">
+                Trang {meta.page}/{meta.totalPages} · Tổng {meta.total} yêu cầu
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={meta.page <= 1}
+                  className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40"
+                >
+                  ← Trước
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                  disabled={meta.page >= meta.totalPages}
+                  className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40"
+                >
+                  Sau →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </>
   );

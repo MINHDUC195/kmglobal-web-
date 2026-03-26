@@ -19,7 +19,9 @@ type Admin = {
 type Program = { id: string; name: string; code: string | null };
 
 export default function AdminManager() {
+  const PAGE_SIZE = 20;
   const [admins, setAdmins] = useState<Admin[]>([]);
+  const [page, setPage] = useState(1);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -73,6 +75,13 @@ export default function AdminManager() {
     void loadAdmins();
     void loadPrograms();
   }, []);
+
+  const totalPages = Math.max(1, Math.ceil(admins.length / PAGE_SIZE));
+  const pagedAdmins = admins.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   function toggleProgram(id: string, selected: string[], setSelected: (v: string[]) => void) {
     if (selected.includes(id)) {
@@ -385,8 +394,9 @@ export default function AdminManager() {
         ) : admins.length === 0 ? (
           <p className="mt-4 text-gray-500">Chưa có admin nào.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left text-gray-400">
                   <th className="pb-3 pr-4">Vai trò</th>
@@ -400,7 +410,7 @@ export default function AdminManager() {
                 </tr>
               </thead>
               <tbody>
-                {admins.map((a) => (
+                {pagedAdmins.map((a) => (
                   <tr key={a.id} className="border-b border-white/5">
                     <td className="py-3 pr-4">
                       <span className={a.role === "owner" ? "text-[#D4AF37]" : "text-gray-400"}>
@@ -447,8 +457,34 @@ export default function AdminManager() {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+            {admins.length > PAGE_SIZE && (
+              <div className="mt-4 flex items-center justify-between text-sm text-gray-400">
+                <span>
+                  Trang {page}/{totalPages} · Tong {admins.length} admin
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="rounded border border-white/20 px-3 py-1 disabled:opacity-40"
+                  >
+                    ← Truoc
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="rounded border border-white/20 px-3 py-1 disabled:opacity-40"
+                  >
+                    Sau →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

@@ -7,6 +7,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { logAuditEvent } from "../../../../lib/audit-log";
+import {
+  clampPage,
+  parsePageParam,
+  parsePageSizeParam,
+  totalPagesFromCount,
+} from "../../../../lib/list-pagination";
 
 async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -19,7 +25,7 @@ async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupab
   return (profile as { role?: string } | null)?.role === "owner";
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
   const isOwner = await ensureOwner(supabase);
   if (!isOwner) {
@@ -157,7 +163,23 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ students: list });
+  const page = parsePageParam(request.nextUrl.searchParams.get("page"));
+  const pageSize = parsePageSizeParam(request.nextUrl.searchParams.get("pageSize"), 100);
+  const total = list.length;
+  const totalPages = totalPagesFromCount(total, pageSize);
+  const currentPage = clampPage(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const studentsPaged = list.slice(start, start + pageSize);
+
+  return NextResponse.json({
+    students: studentsPaged,
+    meta: {
+      total,
+      page: currentPage,
+      pageSize,
+      totalPages,
+    },
+  });
 }
 
 /**

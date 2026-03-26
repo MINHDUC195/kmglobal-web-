@@ -3,12 +3,20 @@ import { redirect } from "next/navigation";
 import DashboardNav from "../../../components/DashboardNav";
 import Footer from "../../../components/Footer";
 import AdminLessonQuestionsList from "../../../components/AdminLessonQuestionsList";
+import ListPagination from "../../../components/ListPagination";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
-import { loadAllLessonQuestionsForAdmin } from "../../../lib/lesson-questions-data";
+import { loadLessonQuestionsForAdminPage } from "../../../lib/lesson-questions-data";
+import { parsePageParam } from "../../../lib/list-pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLessonQuestionsPage() {
+export default async function AdminLessonQuestionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const q = await searchParams;
+  const page = parsePageParam(q.page);
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?to=/admin/lesson-questions");
@@ -24,7 +32,8 @@ export default async function AdminLessonQuestionsPage() {
     redirect("/student");
   }
 
-  const rows = await loadAllLessonQuestionsForAdmin();
+  const pageData = await loadLessonQuestionsForAdminPage({ page, pageSize: 20 });
+  const rows = pageData.rows;
 
   return (
     <div className="min-h-screen bg-[#0a1628]">
@@ -46,6 +55,13 @@ export default async function AdminLessonQuestionsPage() {
         </p>
 
         <AdminLessonQuestionsList initialRows={rows} />
+        <ListPagination
+          page={pageData.meta.page}
+          totalPages={pageData.meta.totalPages}
+          totalItems={pageData.meta.total}
+          pageSize={pageData.meta.pageSize}
+          basePath="/admin/lesson-questions"
+        />
       </main>
 
       <Footer hideLogo />

@@ -1,4 +1,9 @@
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import {
+  clampPage,
+  DEFAULT_LIST_PAGE_SIZE,
+  totalPagesFromCount,
+} from "@/lib/list-pagination";
 
 export type LessonQuestionRow = {
   id: string;
@@ -16,20 +21,61 @@ export type LessonQuestionRow = {
   replies: { id: string; user_id: string; content: string; created_at: string }[];
 };
 
+export type LessonQuestionPageData = {
+  rows: LessonQuestionRow[];
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+};
+
 /**
  * Load all lesson Q&A for admin dashboard (enriched with hierarchy + replies).
  */
 export async function loadAllLessonQuestionsForAdmin(): Promise<LessonQuestionRow[]> {
+  const pageData = await loadLessonQuestionsForAdminPage({
+    page: 1,
+    pageSize: 300,
+  });
+  return pageData.rows;
+}
+
+export async function loadLessonQuestionsForAdminPage(params: {
+  page?: number;
+  pageSize?: number;
+}): Promise<LessonQuestionPageData> {
   const admin = getSupabaseAdminClient();
+  const pageSize = Math.max(1, Math.min(params.pageSize ?? DEFAULT_LIST_PAGE_SIZE, 100));
+  const requestedPage = Math.max(1, params.page ?? 1);
+
+  const { count: totalCount } = await admin
+    .from("lesson_questions")
+    .select("id", { count: "exact", head: true });
+
+  const total = totalCount ?? 0;
+  const totalPages = totalPagesFromCount(total, pageSize);
+  const currentPage = clampPage(requestedPage, totalPages);
+  const from = (currentPage - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   const { data: questions, error } = await admin
     .from("lesson_questions")
     .select("id, lesson_id, user_id, content, status, created_at")
     .order("created_at", { ascending: false })
-    .limit(300);
+    .range(from, to);
 
   if (error || !questions?.length) {
-    return [];
+    return {
+      rows: [],
+      meta: {
+        total,
+        page: currentPage,
+        pageSize,
+        totalPages,
+      },
+    };
   }
 
   const lessonIds = [...new Set(questions.map((q) => q.lesson_id))];
@@ -137,5 +183,13 @@ export async function loadAllLessonQuestionsForAdmin(): Promise<LessonQuestionRo
     });
   }
 
-  return rows;
+  return {
+    rows,
+    meta: {
+      total,
+      page: currentPage,
+      pageSize,
+      totalPages,
+    },
+  };
 }

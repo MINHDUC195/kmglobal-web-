@@ -8,6 +8,12 @@ import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { getCourseDisplayStatus } from "../../../../lib/course-status";
 import { getStaffRole, isAdminOrOwner } from "../../../../lib/staff-auth";
 import { isCourseInLearningPeriod, type RegularCourseListFilter } from "../../../../lib/course-lifecycle";
+import {
+  clampPage,
+  parsePageParam,
+  parsePageSizeParam,
+  totalPagesFromCount,
+} from "../../../../lib/list-pagination";
 
 export async function GET(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -17,6 +23,8 @@ export async function GET(request: NextRequest) {
   }
 
   const filter = (request.nextUrl.searchParams.get("filter") ?? "all") as RegularCourseListFilter;
+  const page = parsePageParam(request.nextUrl.searchParams.get("page"));
+  const pageSize = parsePageSizeParam(request.nextUrl.searchParams.get("pageSize"), 100);
   const validFilter: RegularCourseListFilter = ["all", "registration", "learning", "ended"].includes(filter)
     ? filter
     : "all";
@@ -116,5 +124,19 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
-  return NextResponse.json({ courses: mapped });
+  const total = mapped.length;
+  const totalPages = totalPagesFromCount(total, pageSize);
+  const currentPage = clampPage(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const pagedCourses = mapped.slice(start, start + pageSize);
+
+  return NextResponse.json({
+    courses: pagedCourses,
+    meta: {
+      total,
+      page: currentPage,
+      pageSize,
+      totalPages,
+    },
+  });
 }

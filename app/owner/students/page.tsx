@@ -34,8 +34,12 @@ type StudentDetail = {
   certificates: Array<{ id: string; code: string; percentScore: number; issuedAt: string | null; courseName: string }>;
 };
 
+type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
+
 export default function OwnerStudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [meta, setMeta] = useState<PageMeta | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
@@ -53,17 +57,20 @@ export default function OwnerStudentsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/owner/students");
+      const res = await fetch(`/api/owner/students?page=${page}&pageSize=20`);
       const data = await res.json();
       if (res.ok) {
         setStudents(data.students ?? []);
+        setMeta((data.meta as PageMeta | undefined) ?? null);
       } else {
         setError(data.error || "Không tải được danh sách học viên.");
         setStudents([]);
+        setMeta(null);
       }
     } catch {
       setError("Không thể kết nối.");
       setStudents([]);
+      setMeta(null);
     } finally {
       setLoading(false);
     }
@@ -71,7 +78,7 @@ export default function OwnerStudentsPage() {
 
   useEffect(() => {
     void loadStudents();
-  }, []);
+  }, [page]);
 
   async function openDetailModal(student: Student) {
     setDetailTarget(student);
@@ -226,8 +233,9 @@ export default function OwnerStudentsPage() {
         ) : students.length === 0 ? (
           <p className="text-gray-500">Chưa có học viên nào.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px]">
+          <div className="space-y-4">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px]">
               <thead>
                 <tr className="border-b border-white/15 text-left">
                   <th className="pb-3 pr-4 text-sm font-semibold text-[#D4AF37]">Mã học viên</th>
@@ -303,7 +311,33 @@ export default function OwnerStudentsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
+            {meta && meta.totalPages > 1 && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-gray-500">
+                  Trang {meta.page}/{meta.totalPages} · Tổng {meta.total} học viên
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={meta.page <= 1}
+                    className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40"
+                  >
+                    ← Trước
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                    disabled={meta.page >= meta.totalPages}
+                    className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40"
+                  >
+                    Sau →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -2,16 +2,40 @@ import Link from "next/link";
 import { AdminBreadcrumbStrip } from "../../../components/AdminHierarchyBreadcrumb";
 import DashboardNav from "../../../components/DashboardNav";
 import Footer from "../../../components/Footer";
+import ListPagination from "../../../components/ListPagination";
+import {
+  clampPage,
+  DEFAULT_LIST_PAGE_SIZE,
+  parsePageParam,
+  totalPagesFromCount,
+} from "../../../lib/list-pagination";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import AdminProgramsList from "./AdminProgramsList";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminProgramsPage() {
+export default async function AdminProgramsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const q = await searchParams;
+  const requestedPage = parsePageParam(q.page);
+  const pageSize = DEFAULT_LIST_PAGE_SIZE;
   const supabase = await createServerSupabaseClient();
+  const { count: total } = await supabase
+    .from("programs")
+    .select("id", { count: "exact", head: true });
+  const totalItems = total ?? 0;
+  const totalPages = totalPagesFromCount(totalItems, pageSize);
+  const page = clampPage(requestedPage, totalPages);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   const { data: programs } = await supabase
     .from("programs")
     .select("id, name, code, note, created_at, approval_status")
+    .range(from, to)
     .order("created_at", { ascending: false });
 
   return (
@@ -39,6 +63,13 @@ export default async function AdminProgramsPage() {
 
         <div className="mt-8">
           <AdminProgramsList programs={programs ?? []} />
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            basePath="/admin/programs"
+          />
         </div>
       </main>
 

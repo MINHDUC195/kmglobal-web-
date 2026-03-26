@@ -3,12 +3,18 @@
  * Dùng truy vấn tách để tránh lỗi embed phức tạp với PostgREST.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { getStaffRole, isOwner } from "../../../../lib/staff-auth";
+import {
+  clampPage,
+  parsePageParam,
+  parsePageSizeParam,
+  totalPagesFromCount,
+} from "../../../../lib/list-pagination";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
   const staff = await getStaffRole(supabase);
   if (!staff?.userId || !isOwner(staff.role)) {
@@ -112,5 +118,21 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ requests });
+  const page = parsePageParam(request.nextUrl.searchParams.get("page"));
+  const pageSize = parsePageSizeParam(request.nextUrl.searchParams.get("pageSize"), 100);
+  const total = requests.length;
+  const totalPages = totalPagesFromCount(total, pageSize);
+  const currentPage = clampPage(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paged = requests.slice(start, start + pageSize);
+
+  return NextResponse.json({
+    requests: paged,
+    meta: {
+      total,
+      page: currentPage,
+      pageSize,
+      totalPages,
+    },
+  });
 }

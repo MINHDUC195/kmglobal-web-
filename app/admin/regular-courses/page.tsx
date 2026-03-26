@@ -23,6 +23,7 @@ type CourseRow = {
 };
 
 type FilterKey = "all" | "registration" | "learning" | "ended";
+type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
 
 const FILTER_LABELS: Record<FilterKey, string> = {
   all: "Tất cả",
@@ -33,7 +34,9 @@ const FILTER_LABELS: Record<FilterKey, string> = {
 
 export default function AdminRegularCoursesPage() {
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [page, setPage] = useState(1);
   const [courses, setCourses] = useState<CourseRow[]>([]);
+  const [meta, setMeta] = useState<PageMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,25 +48,34 @@ export default function AdminRegularCoursesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/regular-courses?filter=${encodeURIComponent(filter)}`);
+      const res = await fetch(
+        `/api/admin/regular-courses?filter=${encodeURIComponent(filter)}&page=${page}&pageSize=20`
+      );
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Không tải được danh sách.");
         setCourses([]);
+        setMeta(null);
         return;
       }
       setCourses(data.courses ?? []);
+      setMeta((data.meta as PageMeta | undefined) ?? null);
     } catch {
       setError("Lỗi mạng.");
       setCourses([]);
+      setMeta(null);
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
 
   async function submitDeletionRequest() {
     if (!modalCourse || submitting) return;
@@ -163,84 +175,111 @@ export default function AdminRegularCoursesPage() {
         {loading ? (
           <p className="mt-10 text-gray-500">Đang tải...</p>
         ) : (
-          <div className="mt-8 overflow-x-auto rounded-xl border border-white/10">
-            <table className="min-w-full text-left text-sm text-gray-200">
-              <thead className="border-b border-white/10 bg-white/5 text-xs uppercase tracking-wide text-gray-400">
-                <tr>
-                  <th className="px-4 py-3">Khóa học</th>
-                  <th className="px-4 py-3">Chương trình / Khóa cơ bản</th>
-                  <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3">Học viên</th>
-                  <th className="px-4 py-3 w-52"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {courses.length === 0 ? (
+          <div className="mt-8 space-y-4">
+            <div className="overflow-x-auto rounded-xl border border-white/10">
+              <table className="min-w-full text-left text-sm text-gray-200">
+                <thead className="border-b border-white/10 bg-white/5 text-xs uppercase tracking-wide text-gray-400">
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                      Không có khóa học nào khớp bộ lọc.
-                    </td>
+                    <th className="px-4 py-3">Khóa học</th>
+                    <th className="px-4 py-3">Chương trình / Khóa cơ bản</th>
+                    <th className="px-4 py-3">Trạng thái</th>
+                    <th className="px-4 py-3">Học viên</th>
+                    <th className="px-4 py-3 w-52"></th>
                   </tr>
-                ) : (
-                  courses.map((c) => (
-                    <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/admin/regular-courses/${c.id}`}
-                          className="font-medium text-white hover:text-[#D4AF37]"
-                        >
-                          {c.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-400">
-                        <div>{c.program?.name ?? "—"}</div>
-                        <div className="text-xs text-gray-500">{c.base_course?.name ?? "—"}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full border border-white/15 px-2 py-0.5 text-xs text-gray-300">
-                          {c.displayStatus}
-                        </span>
-                        {c.learningOpen && (
-                          <span className="ml-1 text-xs text-emerald-400/90">· Đang trong thời gian học</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">{c.enrollmentCount}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                          <Link
-                            href={`/admin/regular-courses/${c.id}`}
-                            className="text-[#D4AF37] hover:underline"
-                          >
-                            Chi tiết
-                          </Link>
-                          {c.canRequestDeletion && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setModalCourse(c);
-                                setReason("");
-                              }}
-                              className="text-left text-rose-300/90 hover:underline"
-                            >
-                              Đề nghị xóa
-                            </button>
-                          )}
-                          {c.pendingDeletionRequestId && (
-                            <button
-                              type="button"
-                              onClick={() => void cancelRequest(c.pendingDeletionRequestId!)}
-                              className="text-left text-amber-200/90 hover:underline"
-                            >
-                              Hủy yêu cầu xóa
-                            </button>
-                          )}
-                        </div>
+                </thead>
+                <tbody>
+                  {courses.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        Không có khóa học nào khớp bộ lọc.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    courses.map((c) => (
+                      <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/admin/regular-courses/${c.id}`}
+                            className="font-medium text-white hover:text-[#D4AF37]"
+                          >
+                            {c.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-gray-400">
+                          <div>{c.program?.name ?? "—"}</div>
+                          <div className="text-xs text-gray-500">{c.base_course?.name ?? "—"}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full border border-white/15 px-2 py-0.5 text-xs text-gray-300">
+                            {c.displayStatus}
+                          </span>
+                          {c.learningOpen && (
+                            <span className="ml-1 text-xs text-emerald-400/90">· Đang trong thời gian học</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">{c.enrollmentCount}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                            <Link
+                              href={`/admin/regular-courses/${c.id}`}
+                              className="text-[#D4AF37] hover:underline"
+                            >
+                              Chi tiết
+                            </Link>
+                            {c.canRequestDeletion && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setModalCourse(c);
+                                  setReason("");
+                                }}
+                                className="text-left text-rose-300/90 hover:underline"
+                              >
+                                Đề nghị xóa
+                              </button>
+                            )}
+                            {c.pendingDeletionRequestId && (
+                              <button
+                                type="button"
+                                onClick={() => void cancelRequest(c.pendingDeletionRequestId!)}
+                                className="text-left text-amber-200/90 hover:underline"
+                              >
+                                Hủy yêu cầu xóa
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {meta && meta.totalPages > 1 && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-gray-500">
+                  Trang {meta.page}/{meta.totalPages} · Tổng {meta.total} mục
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={meta.page <= 1}
+                    className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40"
+                  >
+                    ← Trước
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                    disabled={meta.page >= meta.totalPages}
+                    className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-gray-300 disabled:opacity-40"
+                  >
+                    Sau →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

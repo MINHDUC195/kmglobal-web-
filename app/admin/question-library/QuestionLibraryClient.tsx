@@ -26,6 +26,10 @@ type Props = {
   difficultyOptions: { value: string; label: string }[];
   selectedProgramId: string;
   selectedDifficulty: string;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -46,6 +50,10 @@ export default function QuestionLibraryClient({
   difficultyOptions,
   selectedProgramId,
   selectedDifficulty,
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,6 +63,7 @@ export default function QuestionLibraryClient({
     const params = new URLSearchParams(searchParams.toString());
     if (value) params.set(key, value);
     else params.delete(key);
+    params.delete("page");
     router.push(`/admin/question-library?${params.toString()}`);
   }
 
@@ -104,6 +113,10 @@ export default function QuestionLibraryClient({
           ))}
         </select>
       </div>
+
+      <p className="text-xs text-gray-500">
+        Trang {page}/{totalPages} · Hien thi toi da {pageSize} muc/trang · Tong {totalItems} cau hoi
+      </p>
 
       <div className="overflow-hidden rounded-xl border border-white/10">
         <table className="w-full text-left text-sm">

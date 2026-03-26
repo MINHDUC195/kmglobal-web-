@@ -2,6 +2,13 @@ import Link from "next/link";
 import { Suspense } from "react";
 import DashboardNav from "../../../components/DashboardNav";
 import Footer from "../../../components/Footer";
+import ListPagination from "../../../components/ListPagination";
+import {
+  clampPage,
+  DEFAULT_LIST_PAGE_SIZE,
+  parsePageParam,
+  totalPagesFromCount,
+} from "../../../lib/list-pagination";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { HIDE_FROM_LIBRARY_TAG } from "../../../lib/question-tags";
 import QuestionLibraryClient from "./QuestionLibraryClient";
@@ -15,7 +22,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 type PageProps = {
-  searchParams: Promise<{ programId?: string; difficulty?: string }>;
+  searchParams: Promise<{ programId?: string; difficulty?: string; page?: string }>;
 };
 
 export default async function QuestionLibraryPage({ searchParams }: PageProps) {
@@ -23,12 +30,28 @@ export default async function QuestionLibraryPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const programId = params.programId || "";
   const difficulty = params.difficulty || "";
+  const requestedPage = parsePageParam(params.page);
+  const pageSize = DEFAULT_LIST_PAGE_SIZE;
+
+  let countQuery = supabase
+    .from("questions")
+    .select("id", { count: "exact", head: true });
+
+  if (programId) countQuery = countQuery.eq("program_id", programId);
+  if (difficulty) countQuery = countQuery.eq("difficulty_level", difficulty);
+
+  const { count: rawTotal } = await countQuery;
+  const totalItems = rawTotal ?? 0;
+  const totalPages = totalPagesFromCount(totalItems, pageSize);
+  const page = clampPage(requestedPage, totalPages);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   let query = supabase
     .from("questions")
     .select("id, code, content, type, points, max_attempts, tags, program_id, difficulty_level, created_at")
     .order("created_at", { ascending: false })
-    .limit(200);
+    .range(from, to);
 
   if (programId) query = query.eq("program_id", programId);
   if (difficulty) query = query.eq("difficulty_level", difficulty);
@@ -81,8 +104,20 @@ export default async function QuestionLibraryPage({ searchParams }: PageProps) {
             difficultyOptions={DIFFICULTY_OPTIONS}
             selectedProgramId={programId}
             selectedDifficulty={difficulty}
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
           />
         </Suspense>
+        <ListPagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          basePath="/admin/question-library"
+          query={{ programId: programId || undefined, difficulty: difficulty || undefined }}
+        />
       </main>
 
       <Footer hideLogo />
