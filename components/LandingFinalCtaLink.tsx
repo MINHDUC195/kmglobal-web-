@@ -28,25 +28,6 @@ export default function LandingFinalCtaLink({ serverHref, className, children }:
 
       if (!session?.user) {
         setHref("/login");
-        // #region agent log
-        fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "56767c" },
-          body: JSON.stringify({
-            sessionId: "56767c",
-            location: "LandingFinalCtaLink.tsx:resolveClientHref",
-            message: "final CTA href resolved (client)",
-            data: {
-              hypothesisId: "H1",
-              hasClientSession: false,
-              serverHref,
-              resolvedHref: "/login",
-            },
-            timestamp: Date.now(),
-            runId: "post-fix-verify",
-          }),
-        }).catch(() => {});
-        // #endregion
         return;
       }
 
@@ -60,27 +41,6 @@ export default function LandingFinalCtaLink({ serverHref, className, children }:
       else if (role === "admin") next = "/admin";
 
       setHref(next);
-
-      // #region agent log
-      fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "56767c" },
-        body: JSON.stringify({
-          sessionId: "56767c",
-          location: "LandingFinalCtaLink.tsx:resolveClientHref",
-          message: "final CTA href resolved (client)",
-          data: {
-            hypothesisId: "H1",
-            hasClientSession: true,
-            serverHref,
-            resolvedHref: next,
-            serverMismatch: serverHref !== next,
-          },
-          timestamp: Date.now(),
-          runId: "post-fix-verify",
-        }),
-      }).catch(() => {});
-      // #endregion
     }
 
     void resolveClientHref();

@@ -69,25 +69,6 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
     else finalCtaHref = "/student";
   }
 
-  // #region agent log
-  fetch("http://127.0.0.1:7813/ingest/2622e3a9-df77-46ca-ab07-dad3169e247f", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "56767c" },
-    body: JSON.stringify({
-      sessionId: "56767c",
-      location: "app/page.tsx:LandingPage",
-      message: "final CTA server render",
-      data: {
-        hypothesisId: "H1",
-        hasServerUser: Boolean(user?.id),
-        serverFinalCtaHref: finalCtaHref,
-      },
-      timestamp: Date.now(),
-      runId: "post-fix-verify",
-    }),
-  }).catch(() => {});
-  // #endregion
-
   const enrolledByCourse = new Map<string, string>();
   let baseCourseIdsToHide = new Set<string>();
 
