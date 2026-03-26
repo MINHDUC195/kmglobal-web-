@@ -20,6 +20,11 @@ body {
   font-family: var(--font-sans);
 }
 
+:where(a, button, input, select, textarea, [role="button"]):focus-visible {
+  outline: 2px solid #d4af37;
+  outline-offset: 2px;
+}
+
 /* Apply print/copy protection only inside learning area wrapper. */
 .learn-copy-guard {
   -webkit-user-select: none;

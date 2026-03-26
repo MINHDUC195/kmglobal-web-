@@ -395,7 +395,54 @@ export default function AdminManager() {
           <p className="mt-4 text-gray-500">Chưa có admin nào.</p>
         ) : (
           <>
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 space-y-3 md:hidden">
+              {pagedAdmins.map((a) => (
+                <article key={a.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{a.full_name ?? a.email ?? "-"}</p>
+                      <p className="text-xs text-gray-400">{a.email ?? "-"}</p>
+                    </div>
+                    <span className={a.role === "owner" ? "text-xs text-[#D4AF37]" : "text-xs text-gray-400"}>
+                      {a.role === "owner" ? "Owner" : "Admin"}
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-1 text-xs text-gray-300">
+                    <p>Đơn vị: {a.company ?? "-"}</p>
+                    <p>SĐT: {a.phone ?? "-"}</p>
+                    <p>CCCD: {a.id_card ?? "-"}</p>
+                    <p>
+                      Soạn nội dung:{" "}
+                      {(a.editable_program_ids?.length ?? 0) > 0
+                        ? programs
+                            .filter((p) => (a.editable_program_ids ?? []).includes(p.id))
+                            .map((p) => p.name)
+                            .join(", ") || "—"
+                        : "Không"}
+                    </p>
+                  </div>
+                  <div className="mt-3 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(a)}
+                      className="text-sm text-[#D4AF37] hover:underline"
+                    >
+                      Sửa
+                    </button>
+                    {a.role === "admin" && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(a)}
+                        className="text-sm text-red-400 hover:underline"
+                      >
+                        Xóa
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="mt-4 hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left text-gray-400">

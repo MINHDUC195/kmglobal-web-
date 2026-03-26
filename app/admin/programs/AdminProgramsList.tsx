@@ -82,6 +82,45 @@ export default function AdminProgramsList({ programs }: { programs: Program[] })
     );
   }
 
+  function ProgramCard({
+    p,
+    showSubmit,
+  }: {
+    p: Program;
+    showSubmit: boolean;
+  }) {
+    return (
+      <article className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="text-sm font-semibold text-white">{p.name}</p>
+        <p className="mt-1 text-xs text-gray-400">Mã quản lý: {p.code || "-"}</p>
+        <p className="mt-1 text-xs text-gray-400">Ghi chú: {p.note || "-"}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Link
+            href={`/admin/programs/${p.id}`}
+            className="font-medium text-[#D4AF37] hover:underline"
+          >
+            Chi tiết
+          </Link>
+          {showSubmit && (
+            <button
+              type="button"
+              onClick={() => setConfirmSubmit(p)}
+              disabled={submitting === p.id}
+              className="rounded-lg border border-amber-500/60 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+            >
+              {submitting === p.id ? "Đang gửi..." : "Đề xuất phê duyệt"}
+            </button>
+          )}
+          {(p.approval_status ?? "draft") === "pending" && (
+            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">
+              Chờ phê duyệt
+            </span>
+          )}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <>
       {approved.length > 0 && (
@@ -89,7 +128,12 @@ export default function AdminProgramsList({ programs }: { programs: Program[] })
           <h2 className="mb-3 text-lg font-semibold text-white">
             Chương trình đã phê duyệt
           </h2>
-          <div className="overflow-hidden rounded-xl border border-white/10">
+          <div className="space-y-3 md:hidden">
+            {approved.map((p) => (
+              <ProgramCard key={p.id} p={p} showSubmit={false} />
+            ))}
+          </div>
+          <div className="hidden overflow-hidden rounded-xl border border-white/10 md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-white/10 bg-white/5">
                 <tr>
@@ -113,7 +157,22 @@ export default function AdminProgramsList({ programs }: { programs: Program[] })
         <h2 className="mb-3 text-lg font-semibold text-white">
           Chương trình đang phát triển
         </h2>
-        <div className="overflow-hidden rounded-xl border border-white/10">
+        {inDevelopment.length === 0 ? (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-8 text-center text-gray-400">
+            Chưa có chương trình đang phát triển. Nhấn &quot;Thêm chương trình&quot; để tạo mới.
+          </div>
+        ) : (
+          <div className="space-y-3 md:hidden">
+            {inDevelopment.map((p) => (
+              <ProgramCard
+                key={p.id}
+                p={p}
+                showSubmit={(p.approval_status ?? "draft") === "draft"}
+              />
+            ))}
+          </div>
+        )}
+        <div className="hidden overflow-hidden rounded-xl border border-white/10 md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-white/10 bg-white/5">
               <tr>

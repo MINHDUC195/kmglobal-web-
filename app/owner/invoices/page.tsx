@@ -307,7 +307,65 @@ export default function OwnerInvoicesPage() {
                 : "Chưa có dữ liệu giao dịch."}
           </p>
         ) : (
-          <div className="mt-6 overflow-x-auto">
+          <div className="mt-6 space-y-3 md:hidden">
+            {filtered.map((row) => {
+              const canMarkExported = row.can_export_invoice;
+              const actionLabel =
+                canMarkExported && exporting === row.id ? "Đang xử lý..." : row.invoice_action_label;
+              const actionTone =
+                canMarkExported && exporting !== row.id
+                  ? "bg-[#0e5a77] text-white hover:bg-[#0d4d66]"
+                  : row.invoice_state === "needs_review"
+                    ? "cursor-default bg-amber-100 text-amber-800"
+                    : "cursor-default bg-gray-300 text-gray-600";
+
+              return (
+                <article
+                  key={row.enrollment_only ? `enr:${row.id}` : row.id}
+                  className={`rounded-xl border p-4 ${
+                    row.orphan_payment
+                      ? "border-amber-300 bg-amber-50/90"
+                      : "border-black/10 bg-white"
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-[#0a1628]">{row.course_name}</p>
+                  <p className="mt-1 text-xs text-gray-600">{row.program_name}</p>
+                  <div className="mt-3 space-y-1 text-xs text-[#0a1628]">
+                    <p>Học viên: {row.student_name}</p>
+                    <p>Mã HV: {row.student_code}</p>
+                    <p>Mã giao dịch: {row.management_code}</p>
+                    <p>Ngày thanh toán: {row.payment_date_display}</p>
+                    <p>Số tiền: {row.amount_display}</p>
+                    <p>VAT: {row.invoice_status_label}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleExportInvoice(row.id)}
+                    disabled={!canMarkExported || exporting === row.id}
+                    title={row.invoice_status_label}
+                    className={`mt-3 rounded-lg px-3 py-2 text-xs font-medium ${actionTone} disabled:cursor-not-allowed disabled:opacity-90`}
+                  >
+                    {actionLabel}
+                  </button>
+                </article>
+              );
+            })}
+            {(meta?.hasMore || loadingMore) && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => void loadPayments(false)}
+                  disabled={loadingMore}
+                  className="rounded-full border border-[#0a1628]/20 px-5 py-2 text-sm font-semibold text-[#0a1628] transition hover:bg-gray-100 disabled:opacity-60"
+                >
+                  {loadingMore ? "Đang tải thêm..." : "Tải thêm giao dịch"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {!loading && filtered.length > 0 && (
+          <div className="mt-6 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[920px] border-collapse">
               <thead>
                 <tr className="border-b-2 border-[#0a1628]">

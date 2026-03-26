@@ -39,23 +39,25 @@ export default function LessonPreviewTopBar({ children }: LessonPreviewTopBarPro
 
   return (
     <header className="border-b border-[#D9E2EC] bg-[#F8FAFC]">
-      <div className="mx-auto max-w-[var(--container-max)] px-4 sm:px-6">
+      <div className="w-full px-3 sm:px-6 xl:px-10">
         {/* Row 1: Logo + user actions */}
-        <div className="flex items-center justify-between gap-4 py-3">
-          <NavLogoWithBanner variant="light" />
-          <div className="flex shrink-0 items-center gap-3">
+        <div className="flex items-center justify-between gap-3 py-3 lg:gap-6 lg:py-4">
+          <div className="pl-0.5 lg:pl-1">
+            <NavLogoWithBanner variant="transparent" scale={0.96} />
+          </div>
+          <div className="mr-0.5 flex shrink-0 items-center gap-2 rounded-full border border-[#D9E2EC] bg-white/85 px-3 py-1.5 shadow-sm sm:gap-3 sm:px-4">
             <Link
               href="/student"
-              className="text-sm text-[#486581] hover:text-[#102A43]"
+              className="text-xs font-medium text-[#486581] transition hover:text-[#102A43] sm:text-sm"
             >
               Dashboard
             </Link>
-            <span className="hidden text-sm text-[#627D98] sm:inline">
+            <span className="hidden text-sm text-[#627D98] lg:inline">
               Xin chào, {displayName}
             </span>
             <button
               onClick={handleSignOut}
-              className="rounded-full border border-[#BCCCDC] px-4 py-2 text-sm font-semibold text-[#102A43] hover:bg-[#F0F4F8]"
+              className="rounded-full border border-[#BCCCDC] bg-white px-3 py-1.5 text-xs font-semibold text-[#102A43] transition hover:bg-[#F0F4F8] sm:px-4 sm:py-2 sm:text-sm"
             >
               Đăng xuất
             </button>
@@ -63,7 +65,7 @@ export default function LessonPreviewTopBar({ children }: LessonPreviewTopBarPro
         </div>
         {/* Row 2: Breadcrumbs below logo */}
         {children && (
-          <div className="border-t border-[#E4E7EB] py-2">
+          <div className="border-t border-[#E4E7EB] py-2.5">
             {children}
           </div>
         )}

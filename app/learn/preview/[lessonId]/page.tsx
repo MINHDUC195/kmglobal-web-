@@ -51,9 +51,23 @@ const lessonPayloadCache = new Map<string, Lesson>();
 const quizPayloadCache = new Map<string, QuizQuestion[]>();
 const lessonPrefetchInFlight = new Map<string, Promise<void>>();
 const quizPrefetchInFlight = new Map<string, Promise<void>>();
+const METRIC_STORAGE_KEY = "kmg.learn.metrics";
 
 function cacheKey(lessonId: string, enrollmentId: string | null): string {
   return `${lessonId}::${enrollmentId ?? ""}`;
+}
+
+function reportLearnMetric(metric: { name: string; valueMs: number; lessonId: string }) {
+  if (typeof window === "undefined") return;
+  const payload = { ...metric, at: new Date().toISOString() };
+  try {
+    const existingRaw = window.sessionStorage.getItem(METRIC_STORAGE_KEY);
+    const existing = existingRaw ? (JSON.parse(existingRaw) as typeof payload[]) : [];
+    window.sessionStorage.setItem(METRIC_STORAGE_KEY, JSON.stringify([...existing.slice(-19), payload]));
+  } catch {
+    // Ignore private mode / quota errors.
+  }
+  window.dispatchEvent(new CustomEvent("kmg:learn-metric", { detail: payload }));
 }
 
 async function prefetchLessonPayload(lessonId: string, enrollmentId: string | null): Promise<void> {
@@ -117,10 +131,12 @@ function PreviewLessonContent() {
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const lessonLoadStartedAtRef = useRef<number>(0);
 
   useEffect(() => {
     progressRecorded.current = false;
     setShowDiscussion(false);
+    lessonLoadStartedAtRef.current = typeof performance !== "undefined" ? performance.now() : 0;
   }, [lessonId]);
 
   useEffect(() => {
@@ -144,6 +160,13 @@ function PreviewLessonContent() {
         if (!cancelled) {
           setQuestions(cachedQuiz);
           setQuestionsLoading(false);
+          if (lessonLoadStartedAtRef.current > 0 && typeof performance !== "undefined") {
+            reportLearnMetric({
+              name: "lesson_quiz_ready",
+              valueMs: Math.round(performance.now() - lessonLoadStartedAtRef.current),
+              lessonId,
+            });
+          }
         }
         // Revalidate quiz in background; UI uses cached result first.
         void prefetchQuizPayload(lessonId, enrollmentId);
@@ -158,6 +181,13 @@ function PreviewLessonContent() {
             const normalized = qs ?? [];
             setQuestions(normalized);
             quizPayloadCache.set(key, normalized);
+            if (lessonLoadStartedAtRef.current > 0 && typeof performance !== "undefined") {
+              reportLearnMetric({
+                name: "lesson_quiz_ready",
+                valueMs: Math.round(performance.now() - lessonLoadStartedAtRef.current),
+                lessonId,
+              });
+            }
           }
         } else if (!cancelled) {
           setQuestions([]);
@@ -207,6 +237,13 @@ function PreviewLessonContent() {
         setLesson(lessonData);
         lessonPayloadCache.set(key, lessonData);
         setLoading(false);
+        if (lessonLoadStartedAtRef.current > 0 && typeof performance !== "undefined") {
+          reportLearnMetric({
+            name: "lesson_content_ready",
+            valueMs: Math.round(performance.now() - lessonLoadStartedAtRef.current),
+            lessonId,
+          });
+        }
 
         if (enrollmentId && !progressRecorded.current) {
           progressRecorded.current = true;
@@ -525,7 +562,7 @@ function PreviewLessonContent() {
                     />
                   ) : (
                     <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
-                      Nhấn "Hiển thị thảo luận" để tải phần hỏi đáp.
+                      Nhấn &quot;Hiển thị thảo luận&quot; để tải phần hỏi đáp.
                     </p>
                   )}
                 </section>
@@ -709,7 +746,7 @@ function PreviewLessonContent() {
                 />
               ) : (
                 <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
-                  Nhấn "Hiển thị thảo luận" để tải phần hỏi đáp.
+                  Nhấn &quot;Hiển thị thảo luận&quot; để tải phần hỏi đáp.
                 </p>
               )}
             </section>

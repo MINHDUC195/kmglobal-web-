@@ -146,21 +146,24 @@ function LoginPageInner() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a1628] px-6 py-12 text-white">
-      <header className="mx-auto mb-8 flex max-w-xl items-center justify-between">
+    <main className="min-h-screen bg-[#0a1628] px-4 py-6 text-white sm:px-6 sm:py-10">
+      <header className="mx-auto mb-5 flex max-w-xl items-center justify-between sm:mb-8">
         <NavLogoWithBanner />
         <Link
           href="/"
-          className="rounded-full border border-[#D4AF37]/50 bg-[#282c36] px-4 py-2 text-sm font-semibold text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/10"
+          className="rounded-full border border-[#D4AF37]/50 bg-[#282c36] px-3 py-1.5 text-xs font-semibold text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/10 sm:px-4 sm:py-2 sm:text-sm"
         >
           Trang chủ
         </Link>
       </header>
-      <div className="mx-auto max-w-xl rounded-2xl border border-[#D4AF37]/30 bg-[#111c31]/90 p-8 shadow-[0_0_35px_rgba(212,175,55,0.15)]">
-        <h1 className="font-[family-name:var(--font-serif)] text-3xl font-bold text-[#D4AF37]">
+      <div className="mx-auto max-w-xl rounded-2xl border border-[#D4AF37]/30 bg-[#111c31]/90 p-5 shadow-[0_0_35px_rgba(212,175,55,0.15)] sm:p-8">
+        <h1 className="font-[family-name:var(--font-serif)] text-2xl font-bold text-[#D4AF37] sm:text-3xl">
           Đăng nhập
         </h1>
-        <div className="mt-6 space-y-2">
+        <p className="mt-2 text-sm text-gray-300">
+          Ưu tiên đăng nhập nhanh bằng Google để vào học ngay.
+        </p>
+        <div className="mt-4 space-y-2 sm:mt-6">
           {OAUTH_PROVIDERS.map((p) => (
             <button
               key={p.provider}
@@ -174,7 +177,13 @@ function LoginPageInner() {
           ))}
         </div>
 
-        <div className="my-5 flex items-center gap-3 text-xs text-gray-500">
+        {oauthBusy && (
+          <p className="mt-3 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#f6dc8a]">
+            Đang mở trang đăng nhập bên thứ 3, vui lòng chờ...
+          </p>
+        )}
+
+        <div className="my-4 flex items-center gap-3 text-xs text-gray-500 sm:my-5">
           <span className="h-px flex-1 bg-white/10" />
           Hoặc đăng nhập bằng email
           <span className="h-px flex-1 bg-white/10" />
@@ -191,6 +200,10 @@ function LoginPageInner() {
                 placeholder="name@company.com"
                 required
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                inputMode="email"
+                enterKeyHint="next"
               />
             </div>
 
@@ -217,6 +230,7 @@ function LoginPageInner() {
                 className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]"
                 required
                 autoComplete="current-password"
+                enterKeyHint="go"
               />
             </div>
 

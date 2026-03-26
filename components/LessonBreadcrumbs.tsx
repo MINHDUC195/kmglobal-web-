@@ -24,10 +24,18 @@ export default function LessonBreadcrumbs({
 
   if (!hasContext) {
     return (
-      <nav className="flex items-center gap-2 text-sm text-gray-500">
-        <span>Bài học</span>
-        <span className="text-gray-400">/</span>
-        <span className="truncate text-gray-800" title={lessonName}>
+      <nav
+        className="flex flex-wrap items-center gap-2 text-xs font-medium sm:text-sm"
+        aria-label="Breadcrumb"
+      >
+        <span className="rounded-full border border-[#BCCCDC] bg-white px-3 py-1 text-[#334E68]">
+          Bài học
+        </span>
+        <span className="text-[#7B8794]">›</span>
+        <span
+          className="max-w-full truncate rounded-full border border-[#9FB3C8] bg-[#334E68] px-3 py-1 text-white sm:max-w-xl"
+          title={lessonName}
+        >
           {lessonName}
         </span>
       </nav>
@@ -35,12 +43,15 @@ export default function LessonBreadcrumbs({
   }
 
   return (
-    <nav className="flex items-center gap-2 text-sm text-gray-500" aria-label="Breadcrumb">
+    <nav
+      className="flex flex-wrap items-center gap-2 text-xs font-medium sm:text-sm"
+      aria-label="Breadcrumb"
+    >
       {onMenuClick && (
         <button
           type="button"
           onClick={onMenuClick}
-          className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
+          className="rounded-lg border border-[#BCCCDC] bg-white p-1.5 text-[#486581] hover:bg-[#F0F4F8] hover:text-[#102A43] lg:hidden"
           aria-label="Mở menu"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -50,25 +61,28 @@ export default function LessonBreadcrumbs({
       )}
       <Link
         href={`/learn/${enrollmentId}`}
-        className="truncate hover:text-[#002b2d] hover:underline"
+        className="max-w-full truncate rounded-full border border-[#BCCCDC] bg-white px-3 py-1 text-[#334E68] transition hover:border-[#829AB1] hover:bg-[#F0F4F8] sm:max-w-xs"
         title={courseName ?? "Khóa học"}
       >
         {courseName ?? "Khóa học"}
       </Link>
       {chapterName && (
         <>
-          <span className="text-gray-400">›</span>
+          <span className="text-[#7B8794]">›</span>
           <Link
             href={`/learn/${enrollmentId}`}
-            className="truncate hover:text-[#002b2d] hover:underline"
+            className="max-w-full truncate rounded-full border border-[#7B8794] bg-[#334E68] px-3 py-1 text-white transition hover:bg-[#243B53] sm:max-w-sm"
             title={chapterLabel}
           >
             {chapterLabel}
           </Link>
         </>
       )}
-      <span className="text-gray-400">›</span>
-      <span className="max-w-[12rem] truncate text-gray-800 md:max-w-xs" title={lessonName}>
+      <span className="text-[#7B8794]">›</span>
+      <span
+        className="max-w-full truncate rounded-full border border-[#D4AF37]/60 bg-[#FFF7E6] px-3 py-1 font-semibold text-[#8D5A00] sm:max-w-md"
+        title={lessonName}
+      >
         {lessonName}
       </span>
     </nav>

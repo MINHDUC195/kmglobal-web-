@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Student = {
   id: string;
@@ -53,7 +53,7 @@ export default function OwnerStudentsPage() {
   const [promoting, setPromoting] = useState(false);
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
-  async function loadStudents() {
+  const loadStudents = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -74,11 +74,11 @@ export default function OwnerStudentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page]);
 
   useEffect(() => {
     void loadStudents();
-  }, [page]);
+  }, [loadStudents]);
 
   async function openDetailModal(student: Student) {
     setDetailTarget(student);
@@ -234,7 +234,72 @@ export default function OwnerStudentsPage() {
           <p className="text-gray-500">Chưa có học viên nào.</p>
         ) : (
           <div className="space-y-4">
-            <div className="overflow-x-auto">
+            <div className="space-y-3 md:hidden">
+              {students.map((s) => (
+                <article key={s.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-white">{s.full_name || "—"}</p>
+                      <p className="font-mono text-xs text-gray-400">{s.student_code || "—"}</p>
+                    </div>
+                    {s.account_abuse_locked && (
+                      <span className="rounded border border-red-400/40 px-2 py-0.5 text-[10px] font-semibold uppercase text-red-300">
+                        Khóa abuse
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-1 text-xs text-gray-300">
+                    <p>Email: {s.email || "—"}</p>
+                    <p>SĐT: {s.phone || "—"}</p>
+                    <p>Công ty: {s.company || "—"}</p>
+                    <p>
+                      Ngày tham gia:{" "}
+                      {s.created_at
+                        ? new Date(s.created_at).toLocaleDateString("vi-VN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {s.account_abuse_locked && (
+                      <button
+                        type="button"
+                        disabled={unlockingId === s.id}
+                        onClick={() => void handleUnlockAbuse(s)}
+                        className="rounded-lg border border-amber-500/60 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/15 disabled:opacity-50"
+                      >
+                        {unlockingId === s.id ? "Đang mở..." : "Mở khóa abuse"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openDetailModal(s)}
+                      className="rounded-lg border border-[#D4AF37]/60 px-3 py-1.5 text-xs font-medium text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                    >
+                      Chi tiết
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPromoteModal(s)}
+                      className="rounded-lg border border-emerald-500/50 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-500/15"
+                    >
+                      Phê duyệt Admin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDeleteModal(s)}
+                      className="rounded-lg border border-red-400/50 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/20"
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[820px]">
               <thead>
                 <tr className="border-b border-white/15 text-left">

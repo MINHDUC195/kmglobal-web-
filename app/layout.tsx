@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
@@ -40,6 +40,13 @@ export const metadata: Metadata = {
   appleWebApp: {
     title: "KM Global Academy",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0a1628",
 };
 
 export default function RootLayout({

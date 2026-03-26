@@ -17,18 +17,27 @@ function AuthCallbackCompleteInner() {
   const redirectTo = searchParams.get("to");
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Đang hoàn tất đăng nhập...");
+  const [phase, setPhase] = useState<
+    "preparing" | "checking-consent" | "resolving-redirect" | "done" | "failed"
+  >("preparing");
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
 
     async function run() {
       try {
+        setPhase("checking-consent");
+        setMessage("Đang xác nhận thông tin đăng ký...");
         await applyPendingOAuthRegisterConsent();
+        setPhase("resolving-redirect");
+        setMessage("Đang xác định trang đích...");
         await completeLoginRedirect(supabase, router, { redirectTo });
+        setPhase("done");
         setStatus("success");
         setMessage("Đang chuyển hướng...");
       } catch (err) {
         console.error("[auth/callback/complete]", err);
+        setPhase("failed");
         setStatus("error");
         setMessage("Có lỗi xảy ra. Vui lòng thử lại.");
       }
@@ -49,13 +58,34 @@ function AuthCallbackCompleteInner() {
         </Link>
       </header>
 
-      <div className="mx-auto max-w-xl rounded-2xl border border-[#D4AF37]/30 bg-[#111c31]/90 p-8 shadow-[0_0_35px_rgba(212,175,55,0.15)]">
+      <div className="mx-auto max-w-xl rounded-2xl border border-[#D4AF37]/30 bg-[#111c31]/90 p-6 shadow-[0_0_35px_rgba(212,175,55,0.15)] sm:p-8">
         <h1 className="font-[family-name:var(--font-serif)] text-2xl font-bold text-[#D4AF37]">
           {status === "loading" && "Đang xử lý..."}
           {status === "success" && "Đăng nhập thành công"}
           {status === "error" && "Không thể đăng nhập"}
         </h1>
         <p className="mt-4 text-gray-300">{message}</p>
+        {status === "loading" && (
+          <ol className="mt-4 space-y-2 text-sm text-gray-300">
+            <li className={phase !== "preparing" ? "text-emerald-300" : ""}>
+              1. Chuẩn bị phiên đăng nhập
+            </li>
+            <li
+              className={
+                phase === "checking-consent" || phase === "resolving-redirect" || phase === "done"
+                  ? "text-emerald-300"
+                  : ""
+              }
+            >
+              2. Xác nhận điều kiện tài khoản
+            </li>
+            <li
+              className={phase === "resolving-redirect" || phase === "done" ? "text-emerald-300" : ""}
+            >
+              3. Chuyển đến trang phù hợp
+            </li>
+          </ol>
+        )}
 
         {status === "error" && (
           <div className="mt-6 flex flex-wrap gap-3">
