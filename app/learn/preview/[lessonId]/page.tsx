@@ -396,7 +396,7 @@ function PreviewLessonContent() {
   if (useEdXLayout) {
     return (
       <div className="flex min-h-screen flex-col bg-[#F4F7FB]">
-        <LessonPreviewTopBar>
+        <LessonPreviewTopBar programName={lesson.courseName}>
           <LessonBreadcrumbs
             courseName={lesson.courseName}
             chapterName={lesson.chapter?.name}
@@ -584,7 +584,7 @@ function PreviewLessonContent() {
   // Simple layout (no enrollmentId or no chapter context)
   return (
     <div className="min-h-screen bg-[#F4F7FB]">
-      <LessonPreviewTopBar>
+      <LessonPreviewTopBar programName={lesson.courseName}>
         <LessonBreadcrumbs
           lessonName={lesson.name}
           enrollmentId={enrollmentId}

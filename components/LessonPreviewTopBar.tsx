@@ -9,9 +9,10 @@ import { useEffect, useState } from "react";
 type LessonPreviewTopBarProps = {
   /** Breadcrumb component (LessonBreadcrumbs) - optional */
   children?: React.ReactNode;
+  programName?: string | null;
 };
 
-export default function LessonPreviewTopBar({ children }: LessonPreviewTopBarProps) {
+export default function LessonPreviewTopBar({ children, programName }: LessonPreviewTopBarProps) {
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
   const [displayName, setDisplayName] = useState("bạn");
@@ -44,6 +45,11 @@ export default function LessonPreviewTopBar({ children }: LessonPreviewTopBarPro
         <div className="flex items-center justify-between gap-3 py-3 lg:gap-6 lg:py-4">
           <div className="pl-0.5 lg:pl-1">
             <NavLogoWithBanner variant="transparent" scale={0.96} />
+            {programName && (
+              <p className="mt-1 max-w-[40rem] truncate text-xs font-medium text-[#486581]">
+                Chương trình học: <span className="text-[#102A43]">{programName}</span>
+              </p>
+            )}
           </div>
           <div className="mr-0.5 flex shrink-0 items-center gap-2 rounded-full border border-[#D9E2EC] bg-white/85 px-3 py-1.5 shadow-sm sm:gap-3 sm:px-4">
             <Link

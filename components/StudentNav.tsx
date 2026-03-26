@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/student", label: "Trang chủ" },
+  { href: "/student/questions", label: "Câu hỏi và Trả lời" },
   { href: "/student/certificates", label: "Chứng chỉ" },
   { href: "/student/profile", label: "Hồ sơ" },
 ];
@@ -16,7 +17,7 @@ export default function StudentNav() {
     <nav className="border-b border-white/8 bg-white/[0.02]">
       <div className="mx-auto flex max-w-[var(--container-max)] gap-1 px-4 py-2 sm:px-6">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
