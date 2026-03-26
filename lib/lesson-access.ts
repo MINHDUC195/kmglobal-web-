@@ -74,29 +74,27 @@ export async function getLessonWithAccess(
     };
   }
 
-  const { data: rcList } = await admin
-    .from("regular_courses")
-    .select("id")
-    .eq("base_course_id", baseCourseId);
-  const rcIds = (rcList ?? []).map((r) => r.id);
+  const { data: allEnrollments } = await admin
+    .from("enrollments")
+    .select(`
+      id,
+      payment_id,
+      regular_course_id,
+      regular_course:regular_courses(base_course_id, price_cents, discount_percent)
+    `)
+    .eq("user_id", userId)
+    .eq("status", "active");
 
-  const { data: enrollments } = rcIds.length
-    ? await admin
-        .from("enrollments")
-        .select(`
-          id,
-          payment_id,
-          regular_course_id,
-          regular_course:regular_courses(price_cents, discount_percent)
-        `)
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .in("regular_course_id", rcIds)
-    : { data: [] as (MatchedEnrollment & { regular_course?: { price_cents?: number | null; discount_percent?: number | null } | null })[] };
+  const enrollments = (allEnrollments ?? []).filter((e) => {
+    const rc = (e as { regular_course?: { base_course_id?: string } | null }).regular_course;
+    return rc?.base_course_id === baseCourseId;
+  }) as (MatchedEnrollment & {
+    regular_course?: { price_cents?: number | null; discount_percent?: number | null } | null;
+  })[];
 
   const enrollment = enrollmentIdParam
-    ? (enrollments ?? []).find((e) => e.id === enrollmentIdParam)
-    : (enrollments ?? [])[0];
+    ? enrollments.find((e) => e.id === enrollmentIdParam)
+    : enrollments[0];
 
   if (!enrollment) {
     return { ok: false, status: 403, message: "Bạn chưa đăng ký khóa học này" };
@@ -110,15 +108,15 @@ export async function getLessonWithAccess(
   });
 
   if (!isPaid) {
-    const { data: allChapters } = await admin
+    const { data: firstChapter } = await admin
       .from("chapters")
-      .select("id, sort_order")
+      .select("id")
       .eq("base_course_id", baseCourseId)
-      .order("sort_order", { ascending: true });
-    const chapterIdsByOrder = (allChapters ?? []).map((c) => c.id);
-    const chapterIndex = chapterIdsByOrder.indexOf(lesson.chapter_id);
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
     // Chương 1 (index 0) học thử; từ chương 2 trở đi cần thanh toán (khóa trả phí).
-    if (chapterIndex >= 1) {
+    if (firstChapter && firstChapter.id !== lesson.chapter_id) {
       return {
         ok: false,
         status: 403,

@@ -43,11 +43,11 @@ export default function LessonPreviewSidebar({
   }, [isOpen, onClose]);
 
   const sidebarContent = (
-    <div className="flex h-full flex-col border-r border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 lg:justify-start lg:gap-2">
+    <div className="flex h-full flex-col border-r border-[#D9E2EC] bg-[#F8FAFC]">
+      <div className="flex items-center justify-between border-b border-[#D9E2EC] px-4 py-3 lg:justify-start lg:gap-2">
         <Link
           href={`/learn/${enrollmentId}`}
-          className="flex items-center gap-2 text-sm font-medium text-[#002b2d] hover:underline"
+          className="flex items-center gap-2 text-sm font-medium text-[#102A43] hover:underline"
         >
           <span aria-hidden>←</span>
           <span className="line-clamp-1">{chapterLabel}</span>
@@ -55,7 +55,7 @@ export default function LessonPreviewSidebar({
         <button
           type="button"
           onClick={onClose}
-          className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
+          className="rounded p-1.5 text-[#627D98] hover:bg-[#E4E7EB] hover:text-[#334E68] lg:hidden"
           aria-label="Đóng menu"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -74,14 +74,12 @@ export default function LessonPreviewSidebar({
                 onClick={() => onClose()}
                 className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition ${
                   isActive
-                    ? "bg-amber-50 font-medium text-[#002b2d]"
-                    : "text-gray-700 hover:bg-gray-50"
+                    ? "bg-white font-medium text-[#102A43] shadow-sm"
+                    : "text-[#486581] hover:bg-white hover:text-[#102A43]"
                 }`}
               >
                 <span
-                  className={
-                    isCompleted ? "text-[#22c55e]" : "text-gray-400"
-                  }
+                  className={isCompleted ? "text-[#1F9D55]" : "text-[#9FB3C8]"}
                   aria-hidden
                 >
                   {isCompleted ? "✓" : "○"}

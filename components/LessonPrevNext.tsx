@@ -16,11 +16,11 @@ export default function LessonPrevNext({
   const courseUrl = `/learn/${enrollmentId}`;
 
   return (
-    <div className="mt-10 flex flex-wrap items-center justify-center gap-4 border-t border-gray-200 pt-8">
+    <div className="mt-10 flex flex-wrap items-center justify-center gap-4 border-t border-[#D9E2EC] pt-8">
       {prevLessonId ? (
         <Link
           href={`/learn/preview/${prevLessonId}?enrollmentId=${enrollmentId}`}
-          className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-[#002b2d] hover:bg-gray-50"
+          className="inline-flex items-center gap-2 rounded-full border border-[#BCCCDC] px-6 py-2.5 text-sm font-semibold text-[#0F2D4A] hover:bg-[#F0F4F8]"
         >
           <span aria-hidden>←</span>
           Trước
@@ -28,7 +28,7 @@ export default function LessonPrevNext({
       ) : (
         <Link
           href={courseUrl}
-          className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+          className="inline-flex items-center gap-2 rounded-full border border-[#BCCCDC] px-6 py-2.5 text-sm font-semibold text-[#486581] hover:bg-[#F0F4F8]"
         >
           <span aria-hidden>←</span>
           Về danh sách bài
@@ -37,7 +37,7 @@ export default function LessonPrevNext({
       {nextLessonId ? (
         <Link
           href={`/learn/preview/${nextLessonId}?enrollmentId=${enrollmentId}`}
-          className="inline-flex items-center gap-2 rounded-full border border-[#002b2d] bg-[#002b2d] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#004144]"
+          className="inline-flex items-center gap-2 rounded-full border border-[#0F4C81] bg-[#0F4C81] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#0B3A61]"
         >
           Tiếp theo
           <span aria-hidden>→</span>
@@ -45,7 +45,7 @@ export default function LessonPrevNext({
       ) : (
         <Link
           href={courseUrl}
-          className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-[#002b2d] hover:bg-gray-50"
+          className="inline-flex items-center gap-2 rounded-full border border-[#BCCCDC] px-6 py-2.5 text-sm font-semibold text-[#0F2D4A] hover:bg-[#F0F4F8]"
         >
           Về danh sách bài
           <span aria-hidden>→</span>

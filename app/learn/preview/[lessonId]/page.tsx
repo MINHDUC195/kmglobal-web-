@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import BunnyVideoPlayer from "../../../../components/BunnyVideoPlayer";
 import Footer from "../../../../components/Footer";
@@ -48,6 +48,7 @@ type QuizQuestion = {
 };
 
 function PreviewLessonContent() {
+  const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const enrollmentId = searchParams.get("enrollmentId");
@@ -56,29 +57,61 @@ function PreviewLessonContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [showDiscussion, setShowDiscussion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     progressRecorded.current = false;
+    setShowDiscussion(false);
   }, [lessonId]);
 
   useEffect(() => {
-    async function load() {
+    let cancelled = false;
+    const lessonAbort = new AbortController();
+    const quizAbort = new AbortController();
+
+    async function loadQuestions() {
+      if (!enrollmentId) {
+        if (!cancelled) {
+          setQuestions([]);
+          setQuestionsLoading(false);
+        }
+        return;
+      }
+      setQuestionsLoading(true);
+      const questionsUrl = `/api/quiz/questions?lessonId=${lessonId}&enrollmentId=${encodeURIComponent(enrollmentId)}`;
+      try {
+        const questionsRes = await fetch(questionsUrl, { signal: quizAbort.signal });
+        if (cancelled) return;
+        if (questionsRes.ok) {
+          const { questions: qs } = await questionsRes.json();
+          if (!cancelled) setQuestions(qs ?? []);
+        } else if (!cancelled) {
+          setQuestions([]);
+        }
+      } catch (e) {
+        if (!cancelled && !(e instanceof DOMException && e.name === "AbortError")) {
+          setQuestions([]);
+        }
+      } finally {
+        if (!cancelled) setQuestionsLoading(false);
+      }
+    }
+
+    async function loadLessonFirst() {
+      setLoading(true);
       setError("");
+      setQuestions([]);
       try {
         const lessonUrl = enrollmentId
           ? `/api/lessons/${lessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`
           : `/api/lessons/${lessonId}`;
-        const questionsUrl = enrollmentId
-          ? `/api/quiz/questions?lessonId=${lessonId}&enrollmentId=${encodeURIComponent(enrollmentId)}`
-          : `/api/quiz/questions?lessonId=${lessonId}`;
-        const [lessonRes, questionsRes] = await Promise.all([
-          fetch(lessonUrl),
-          fetch(questionsUrl),
-        ]);
+        const lessonRes = await fetch(lessonUrl, { signal: lessonAbort.signal });
 
         if (!lessonRes.ok) {
+          if (cancelled) return;
           if (lessonRes.status === 404) {
             setError("Không tìm thấy bài học");
             return;
@@ -92,7 +125,9 @@ function PreviewLessonContent() {
         }
 
         const lessonData = await lessonRes.json();
+        if (cancelled) return;
         setLesson(lessonData);
+        setLoading(false);
 
         if (enrollmentId && !progressRecorded.current) {
           progressRecorded.current = true;
@@ -102,19 +137,34 @@ function PreviewLessonContent() {
             body: JSON.stringify({ lessonId, enrollmentId }),
           });
         }
-
-        if (questionsRes.ok) {
-          const { questions: qs } = await questionsRes.json();
-          setQuestions(qs ?? []);
-        }
+        void loadQuestions();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Lỗi tải nội dung");
-      } finally {
-        setLoading(false);
+        if (!cancelled && !(e instanceof DOMException && e.name === "AbortError")) {
+          setError(e instanceof Error ? e.message : "Lỗi tải nội dung");
+        }
+        if (!cancelled) setLoading(false);
       }
     }
-    void load();
+
+    void loadLessonFirst();
+
+    return () => {
+      cancelled = true;
+      lessonAbort.abort();
+      quizAbort.abort();
+    };
   }, [lessonId, enrollmentId]);
+
+  useEffect(() => {
+    if (!enrollmentId || !lesson) return;
+    const query = `?enrollmentId=${encodeURIComponent(enrollmentId)}`;
+    if (lesson.prevLessonId) {
+      router.prefetch(`/learn/preview/${lesson.prevLessonId}${query}`);
+    }
+    if (lesson.nextLessonId) {
+      router.prefetch(`/learn/preview/${lesson.nextLessonId}${query}`);
+    }
+  }, [router, enrollmentId, lesson]);
 
   const handleQuizSubmit = useCallback(
     async (
@@ -191,7 +241,7 @@ function PreviewLessonContent() {
           <p className="text-red-600">{error || "Không tìm thấy bài học"}</p>
           <Link
             href={enrollmentId ? `/learn/${enrollmentId}` : "/student"}
-            className="mt-6 inline-block text-[#002b2d] hover:underline"
+            className="mt-6 inline-block text-[#0F2D4A] hover:underline"
           >
             ← {enrollmentId ? "Về khóa học" : "Về Dashboard"}
           </Link>
@@ -203,7 +253,7 @@ function PreviewLessonContent() {
 
   if (useEdXLayout) {
     return (
-      <div className="flex min-h-screen flex-col bg-white">
+      <div className="flex min-h-screen flex-col bg-[#F4F7FB]">
         <LessonPreviewTopBar>
           <LessonBreadcrumbs
             courseName={lesson.courseName}
@@ -224,7 +274,7 @@ function PreviewLessonContent() {
             onClose={() => setSidebarOpen(false)}
           />
           <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8">
-            <h1 className="text-2xl font-bold text-[#002b2d]">{lesson.name}</h1>
+            <h1 className="text-2xl font-bold text-[#0F2D4A]">{lesson.name}</h1>
             {lesson.description && (
               <p className="mt-2 text-gray-600">{lesson.description}</p>
             )}
@@ -232,7 +282,7 @@ function PreviewLessonContent() {
             <div className="mt-10 space-y-12">
               {lesson.video_url && (
                 <section>
-                  <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">Video</h2>
+                  <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Video</h2>
                   <BunnyVideoPlayer
                     lessonId={lessonId}
                     enrollmentId={enrollmentId}
@@ -243,7 +293,7 @@ function PreviewLessonContent() {
 
               {lesson.document_url && (
                 <section>
-                  <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">Tài liệu</h2>
+                  <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Tài liệu</h2>
                   <PDFViewer
                     lessonId={lessonId}
                     enrollmentId={enrollmentId}
@@ -252,9 +302,16 @@ function PreviewLessonContent() {
                 </section>
               )}
 
-              {questions.length > 0 ? (
+              {questionsLoading ? (
                 <section>
-                  <h2 className="mb-6 text-lg font-semibold text-[#002b2d]">
+                  <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">Câu hỏi kiểm tra</h2>
+                  <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
+                    Đang tải câu hỏi...
+                  </p>
+                </section>
+              ) : questions.length > 0 ? (
+                <section>
+                  <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">
                     Câu hỏi kiểm tra
                   </h2>
                   {questions.some((q) => q.course_expired_locked) && (
@@ -332,7 +389,7 @@ function PreviewLessonContent() {
                 </section>
               ) : (
                 <section>
-                  <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">
+                  <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">
                     Bài tập kiểm tra
                   </h2>
                   <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
@@ -344,12 +401,28 @@ function PreviewLessonContent() {
 
               {enrollmentId && (
                 <section>
-                  <LessonQASection
-                    lessonId={lessonId}
-                    enrollmentId={enrollmentId}
-                    lessonName={lesson.name}
-                    variant="light"
-                  />
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-[#0F2D4A]">Thảo luận</h2>
+                    <button
+                      type="button"
+                      onClick={() => setShowDiscussion((v) => !v)}
+                      className="rounded-lg border border-[#9FB3C8] bg-white px-4 py-2 text-sm font-semibold text-[#334E68] hover:bg-[#F0F4F8]"
+                    >
+                      {showDiscussion ? "Ẩn thảo luận" : "Hiển thị thảo luận"}
+                    </button>
+                  </div>
+                  {showDiscussion ? (
+                    <LessonQASection
+                      lessonId={lessonId}
+                      enrollmentId={enrollmentId}
+                      lessonName={lesson.name}
+                      variant="light"
+                    />
+                  ) : (
+                    <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
+                      Nhấn "Hiển thị thảo luận" để tải phần hỏi đáp.
+                    </p>
+                  )}
                 </section>
               )}
             </div>
@@ -368,7 +441,7 @@ function PreviewLessonContent() {
 
   // Simple layout (no enrollmentId or no chapter context)
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#F4F7FB]">
       <LessonPreviewTopBar>
         <LessonBreadcrumbs
           lessonName={lesson.name}
@@ -379,13 +452,13 @@ function PreviewLessonContent() {
         <div className="mb-8 flex items-center gap-4">
           <Link
             href={enrollmentId ? `/learn/${enrollmentId}` : "/student"}
-            className="text-sm text-gray-600 hover:text-[#002b2d]"
+            className="text-sm text-gray-600 hover:text-[#0F2D4A]"
           >
             ← {enrollmentId ? "Về khóa học" : "Về Dashboard"}
           </Link>
         </div>
 
-        <h1 className="text-2xl font-bold text-[#002b2d]">{lesson.name}</h1>
+        <h1 className="text-2xl font-bold text-[#0F2D4A]">{lesson.name}</h1>
         {lesson.description && (
           <p className="mt-2 text-gray-600">{lesson.description}</p>
         )}
@@ -393,7 +466,7 @@ function PreviewLessonContent() {
         <div className="mt-10 space-y-12">
           {lesson.video_url && (
             <section>
-              <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">Video</h2>
+              <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Video</h2>
               <BunnyVideoPlayer
                 lessonId={lessonId}
                 enrollmentId={enrollmentId}
@@ -404,7 +477,7 @@ function PreviewLessonContent() {
 
           {lesson.document_url && (
             <section>
-              <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">Tài liệu</h2>
+              <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Tài liệu</h2>
               <PDFViewer
                 lessonId={lessonId}
                 enrollmentId={enrollmentId}
@@ -413,9 +486,18 @@ function PreviewLessonContent() {
             </section>
           )}
 
-          {questions.length > 0 ? (
+          {questionsLoading ? (
             <section>
-              <h2 className="mb-6 text-lg font-semibold text-[#002b2d]">
+              <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">
+                Câu hỏi kiểm tra
+              </h2>
+              <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
+                Đang tải câu hỏi...
+              </p>
+            </section>
+          ) : questions.length > 0 ? (
+            <section>
+              <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">
                 Câu hỏi kiểm tra
               </h2>
               {questions.some((q) => q.course_expired_locked) && (
@@ -493,7 +575,7 @@ function PreviewLessonContent() {
             </section>
           ) : (
             <section>
-              <h2 className="mb-4 text-lg font-semibold text-[#002b2d]">Bài tập kiểm tra</h2>
+              <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Bài tập kiểm tra</h2>
               <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
                 Bài học này chưa có câu hỏi trắc nghiệm. Điểm quá trình khóa học không tính từ bài
                 tập cho bài này; bạn vẫn có thể xem video, tài liệu và tham gia hỏi đáp bên dưới.
@@ -503,19 +585,35 @@ function PreviewLessonContent() {
 
           {enrollmentId && (
             <section>
-              <LessonQASection
-                lessonId={lessonId}
-                enrollmentId={enrollmentId}
-                lessonName={lesson.name}
-                variant="light"
-              />
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-[#0F2D4A]">Thảo luận</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowDiscussion((v) => !v)}
+                  className="rounded-lg border border-[#9FB3C8] bg-white px-4 py-2 text-sm font-semibold text-[#334E68] hover:bg-[#F0F4F8]"
+                >
+                  {showDiscussion ? "Ẩn thảo luận" : "Hiển thị thảo luận"}
+                </button>
+              </div>
+              {showDiscussion ? (
+                <LessonQASection
+                  lessonId={lessonId}
+                  enrollmentId={enrollmentId}
+                  lessonName={lesson.name}
+                  variant="light"
+                />
+              ) : (
+                <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
+                  Nhấn "Hiển thị thảo luận" để tải phần hỏi đáp.
+                </p>
+              )}
             </section>
           )}
         </div>
 
         <Link
           href={enrollmentId ? `/learn/${enrollmentId}` : "/student"}
-          className="mt-12 inline-block rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-[#002b2d] hover:bg-gray-50"
+          className="mt-12 inline-block rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-[#0F2D4A] hover:bg-gray-50"
         >
           {enrollmentId ? "Về khóa học" : "Về Dashboard"}
         </Link>
@@ -529,7 +627,7 @@ export default function PreviewLessonPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-white text-[#002b2d]">
+        <div className="flex min-h-screen items-center justify-center bg-white text-[#0F2D4A]">
           Đang tải bài học...
         </div>
       }

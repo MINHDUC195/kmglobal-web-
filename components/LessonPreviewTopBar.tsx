@@ -38,7 +38,7 @@ export default function LessonPreviewTopBar({ children }: LessonPreviewTopBarPro
   }
 
   return (
-    <header className="border-b border-gray-200 bg-white">
+    <header className="border-b border-[#D9E2EC] bg-[#F8FAFC]">
       <div className="mx-auto max-w-[var(--container-max)] px-4 sm:px-6">
         {/* Row 1: Logo + user actions */}
         <div className="flex items-center justify-between gap-4 py-3">
@@ -46,16 +46,16 @@ export default function LessonPreviewTopBar({ children }: LessonPreviewTopBarPro
           <div className="flex shrink-0 items-center gap-3">
             <Link
               href="/student"
-              className="text-sm text-gray-600 hover:text-[#002b2d]"
+              className="text-sm text-[#486581] hover:text-[#102A43]"
             >
               Dashboard
             </Link>
-            <span className="hidden text-sm text-gray-500 sm:inline">
+            <span className="hidden text-sm text-[#627D98] sm:inline">
               Xin chào, {displayName}
             </span>
             <button
               onClick={handleSignOut}
-              className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-[#002b2d] hover:bg-gray-50"
+              className="rounded-full border border-[#BCCCDC] px-4 py-2 text-sm font-semibold text-[#102A43] hover:bg-[#F0F4F8]"
             >
               Đăng xuất
             </button>
@@ -63,7 +63,7 @@ export default function LessonPreviewTopBar({ children }: LessonPreviewTopBarPro
         </div>
         {/* Row 2: Breadcrumbs below logo */}
         {children && (
-          <div className="border-t border-gray-100 py-2">
+          <div className="border-t border-[#E4E7EB] py-2">
             {children}
           </div>
         )}

@@ -60,28 +60,33 @@ export async function GET(
       enrollmentIdParam &&
       enrollment.id === enrollmentIdParam
     ) {
-      const { data: chapterFull } = await admin
-        .from("chapters")
-        .select("id, name, sort_order")
-        .eq("id", lesson.chapter_id)
-        .single();
+      const [chapterFullRes, chapterLessonsRes, rcWithNameRes, progressRowsRes] =
+        await Promise.all([
+          admin
+            .from("chapters")
+            .select("id, name, sort_order")
+            .eq("id", lesson.chapter_id)
+            .single(),
+          admin
+            .from("lessons")
+            .select("id, name, sort_order")
+            .eq("chapter_id", lesson.chapter_id)
+            .order("sort_order", { ascending: true }),
+          admin
+            .from("regular_courses")
+            .select("name")
+            .eq("id", enrollment.regular_course_id)
+            .single(),
+          admin
+            .from("lesson_progress")
+            .select("lesson_id")
+            .eq("enrollment_id", enrollmentIdParam),
+        ]);
 
-      const { data: chapterLessons } = await admin
-        .from("lessons")
-        .select("id, name, sort_order")
-        .eq("chapter_id", lesson.chapter_id)
-        .order("sort_order", { ascending: true });
-
-      const { data: rcWithName } = await admin
-        .from("regular_courses")
-        .select("name")
-        .eq("id", enrollment.regular_course_id)
-        .single();
-
-      const { data: progressRows } = await admin
-        .from("lesson_progress")
-        .select("lesson_id")
-        .eq("enrollment_id", enrollmentIdParam);
+      const chapterFull = chapterFullRes.data;
+      const chapterLessons = chapterLessonsRes.data;
+      const rcWithName = rcWithNameRes.data;
+      const progressRows = progressRowsRes.data;
 
       const completedLessonIds = (progressRows ?? []).map((p) => p.lesson_id);
       const sortedLessons = (chapterLessons ?? []).sort(

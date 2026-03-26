@@ -135,15 +135,15 @@ export default function LessonQASection({
   if (!enrollmentId) return null;
 
   const containerCls = isLight
-    ? "rounded-xl border border-gray-200 bg-gray-50 p-6"
+    ? "rounded-xl border border-[#D9E2EC] bg-white p-6 shadow-sm"
     : "rounded-xl border border-white/10 bg-white/5 p-6";
-  const titleCls = isLight ? "text-[#002b2d]" : "text-white";
-  const textCls = isLight ? "text-gray-700" : "text-gray-200";
+  const titleCls = isLight ? "text-[#0F2D4A]" : "text-white";
+  const textCls = isLight ? "text-[#334E68]" : "text-gray-200";
   const inputCls = isLight
-    ? "w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-[#D4AF37]"
+    ? "w-full rounded-xl border border-[#BCCCDC] bg-[#F8FAFC] px-4 py-3 text-[#102A43] outline-none focus:border-[#486581]"
     : "w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-white outline-none focus:border-[#D4AF37]";
   const cardCls = isLight
-    ? "rounded-lg border border-gray-200 bg-white p-4"
+    ? "rounded-lg border border-[#D9E2EC] bg-[#F8FAFC] p-4"
     : "rounded-lg border border-white/10 bg-white/5 p-4";
 
   return (
@@ -165,7 +165,7 @@ export default function LessonQASection({
         <p className={`mt-2 text-xs ${isLight ? "text-gray-500" : "text-gray-400"}`}>
           Không nhập số điện thoại, email, tài khoản mạng xã hội (Facebook, Instagram, Zalo, Telegram, WeChat...).
         </p>
-        {error && <p className="mt-2 text-sm text-amber-600">{error}</p>}
+        {error && <p className="mt-2 text-sm text-[#B7791F]">{error}</p>}
         <button
           type="submit"
           disabled={!content.trim() || submitting}
@@ -193,7 +193,7 @@ export default function LessonQASection({
               {q.replies.length > 0 && (
                 <div className="mt-3 space-y-2 border-t border-gray-200 pt-3 dark:border-white/10">
                   {q.replies.map((r) => (
-                    <div key={r.id} className="rounded bg-gray-100 p-2 dark:bg-white/5">
+                    <div key={r.id} className="rounded border border-[#D9E2EC] bg-white p-2 dark:bg-white/5">
                       <p className={`text-sm ${textCls}`}>{r.content}</p>
                       <p className={`mt-1 text-xs ${isLight ? "text-gray-500" : "text-gray-400"}`}>
                         {new Date(r.created_at).toLocaleDateString("vi-VN")}
@@ -228,7 +228,7 @@ export default function LessonQASection({
                           setReplyingTo(null);
                           setReplyContent("");
                         }}
-                        className="rounded-full border border-gray-300 px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-50 dark:border-white/20 dark:text-gray-400"
+                        className="rounded-full border border-[#BCCCDC] px-4 py-1.5 text-sm text-[#334E68] hover:bg-[#F0F4F8] dark:border-white/20 dark:text-gray-400"
                       >
                         Hủy
                       </button>
