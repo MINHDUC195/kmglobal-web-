@@ -17,7 +17,7 @@ const BUNNY_EMBED_BASE = "https://iframe.mediadelivery.net/embed";
  * Parse video ID from Bunny URL or return as-is if already an ID
  * Supports: full URL, library_id/video_id, or just video_id (GUID)
  */
-export function parseBunnyVideoId(input: string): { libraryId: string; videoId: string } | null {
+function parseBunnyVideoId(input: string): { libraryId: string; videoId: string } | null {
   if (!input?.trim()) return null;
 
   const trimmed = input.trim();
