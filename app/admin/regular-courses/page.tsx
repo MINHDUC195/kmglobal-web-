@@ -148,6 +148,15 @@ export default function AdminRegularCoursesPage() {
           Danh sách các phiên khóa học thường (regular_courses). Admin/Owner có thể đề nghị xóa khi chưa có học viên đăng ký.
           Owner đề nghị sẽ được phê duyệt và xóa ngay; Admin đề nghị chờ Owner phê duyệt tại &quot;Phê duyệt xóa khóa&quot;.
         </p>
+        <p className="mt-2 max-w-3xl text-xs text-gray-500">
+          Cột <span className="text-gray-400">Học viên</span> đếm đăng ký <strong className="text-gray-400">đang hiệu lực</strong> (trạng thái{" "}
+          <strong className="text-gray-400">active</strong> trên hệ thống).{" "}
+          <strong className="text-gray-400">Không</strong> tính người đã hủy (<span className="text-gray-400">cancelled</span>) hoặc hết hạn (
+          <span className="text-gray-400">expired</span>). Học viên hủy nhiều lần tới mức bị khóa tài khoản (ví dụ hủy 5 lần khi chưa thanh toán)
+          vẫn chỉ có một bản ghi đăng ký cho khóa đó — sau lần hủy cuối bản ghi là <span className="text-gray-400">cancelled</span>, nên{" "}
+          <strong className="text-gray-400">không</strong> vào số «Học viên» ở đây. Báo cáo Owner «Thông tin thanh toán» là theo{" "}
+          <strong className="text-gray-400">giao dịch</strong>, không phải chỉ số đăng ký.
+        </p>
 
         {error && (
           <p className="mt-4 rounded-lg border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-200">

@@ -61,7 +61,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ courses: [] });
   }
 
-  const { data: enrollAgg } = await admin.from("enrollments").select("regular_course_id").in("regular_course_id", ids);
+  const { data: enrollAgg } = await admin
+    .from("enrollments")
+    .select("regular_course_id")
+    .in("regular_course_id", ids)
+    .eq("status", "active");
 
   const countByCourse: Record<string, number> = {};
   for (const row of enrollAgg ?? []) {
