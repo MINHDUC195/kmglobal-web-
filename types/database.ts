@@ -1,22 +1,13 @@
 /**
- * KM Global - Database types (Clean Slate)
- * Chỉ chứa schema mặc định cho bảng profiles (Auth).
+ * Barrel types công khai — import từ `types/database` như trước.
+ * Định nghĩa chi tiết nằm trong `types/domain/`; schema Postgres sinh tự động trong `database.generated.ts`.
  */
 
-export type UserRole = "owner" | "admin" | "student";
-
-export interface ProfileRow {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  role: UserRole;
-  address: string | null;
-  company: string | null;
-  phone: string | null;
-  gender: "male" | "female" | "other" | null;
-  avatar_url: string | null;
-  last_ip: string | null;
-  last_session_id: string | null;
-  security_signed: boolean;
-  created_at: string;
-}
+export type { Database, Json } from "./database.generated";
+export type {
+  ProfileHeaderSnippet,
+  ProfileRow,
+  ProfileRowForLoginRedirect,
+  UserRole,
+} from "./domain/profile";
+export type { StudentProfileCompletionRow } from "./domain/student-profile";

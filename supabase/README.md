@@ -30,22 +30,22 @@ Chạy migration trong Supabase SQL Editor. Nếu user đã tồn tại, chỉ c
 ## Đề nghị xóa khóa học thường (Admin → Owner)
 
 - **20260320140000_course_deletion_requests.sql** — Bảng `course_deletion_requests` + hàm `approve_course_deletion_request` (phê duyệt xóa an toàn).
-- Hoặc chạy một lần: `RUN_MIGRATION_COURSE_DELETION_REQUESTS.sql` trong SQL Editor.
+- Hoặc chạy một lần: `ops/RUN_MIGRATION_COURSE_DELETION_REQUESTS.sql` trong SQL Editor.
 
 ## Khóa chỉnh sửa (Pessimistic Locking)
 
 - **20260320150000_edit_locks.sql** — Bảng `edit_locks` để tránh 2 admin sửa cùng bài học ghi đè lẫn nhau.
-- Hoặc chạy một lần: `RUN_MIGRATION_EDIT_LOCKS.sql` trong SQL Editor.
+- Hoặc chạy một lần: `ops/RUN_MIGRATION_EDIT_LOCKS.sql` trong SQL Editor.
 
 ## Giảm giá khóa học
 
 - **20260321100000_regular_courses_discount.sql** — Thêm cột `discount_percent` (1–99%) cho `regular_courses`.
-- Hoặc chạy một lần: `RUN_MIGRATION_DISCOUNT.sql` trong SQL Editor.
+- Hoặc chạy một lần: `ops/RUN_MIGRATION_DISCOUNT.sql` trong SQL Editor.
 
 ## RLS bảng `questions` (học viên không SELECT trực tiếp)
 
 - **20260324120100_questions_rls_remove_student_select.sql** — Xóa policy cho phép mọi user đã đăng nhập đọc toàn bộ `questions`; đọc câu hỏi qua API server.
-- Hoặc chạy một lần: `RUN_MIGRATION_QUESTIONS_RLS_NARROW.sql` trong SQL Editor.
+- Hoặc chạy một lần: `ops/RUN_MIGRATION_QUESTIONS_RLS_NARROW.sql` trong SQL Editor.
 
 ## Cột `profiles` cho agree-terms và hồ sơ học viên
 
@@ -80,3 +80,14 @@ Trong **Authentication → Providers**:
 ## Dọn payments / hóa đơn sau khi xóa user (Auth)
 
 - **`ops_cleanup_payments_deleted_users.sql`** — Xem và xóa các dòng `payments` có `user_id IS NULL` (user đã xóa trong Auth; cột `invoice_exported_at` nằm trên `payments`). Chạy **SELECT** trước, rồi mới **DELETE** trong SQL Editor.
+
+## Supabase types cho app (TypeScript)
+
+- Sinh file `types/database.generated.ts` bằng:
+  - `npm run types:supabase`
+- File generated là nguồn sự thật cho `Database`/`Json`; không sửa tay.
+- Quy trình an toàn khi đổi schema:
+  1. Apply migration DB trước.
+  2. Regenerate type (`npm run types:supabase`).
+  3. Commit migration + file generated.
+  4. Build/check rồi mới deploy app.

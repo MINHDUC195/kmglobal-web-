@@ -76,7 +76,7 @@ export default function EditBaseCoursePage() {
         .single();
       if (err || !data) {
         if (err?.message?.includes("certificate_sample_url") || err?.message?.includes("schema cache")) {
-          setError("Chưa chạy migration. Vào Supabase Dashboard → SQL Editor → chạy file supabase/RUN_MIGRATION_CERTIFICATE_SAMPLE.sql rồi tải lại trang.");
+          setError("Chưa chạy migration. Vào Supabase Dashboard → SQL Editor → chạy file supabase/ops/RUN_MIGRATION_CERTIFICATE_SAMPLE.sql rồi tải lại trang.");
         } else {
           setError(err?.message || "Không tìm thấy khóa học");
         }
@@ -239,7 +239,7 @@ export default function EditBaseCoursePage() {
         msg.includes("schema cache")
       ) {
         setError(
-          "Chưa chạy migration. Vào Supabase Dashboard → SQL Editor → chạy các file supabase/RUN_MIGRATION_CERTIFICATE_SAMPLE.sql và supabase/RUN_MIGRATION_CERTIFICATE_REQUIRE_LESSONS.sql (và RUN_MIGRATION_CERTIFICATE_PASS.sql nếu cần) rồi tải lại trang."
+          "Chưa chạy migration. Vào Supabase Dashboard → SQL Editor → chạy các file supabase/ops/RUN_MIGRATION_CERTIFICATE_SAMPLE.sql và supabase/ops/RUN_MIGRATION_CERTIFICATE_REQUIRE_LESSONS.sql (và supabase/ops/RUN_MIGRATION_CERTIFICATE_PASS.sql nếu cần) rồi tải lại trang."
         );
       } else {
         setError(msg);

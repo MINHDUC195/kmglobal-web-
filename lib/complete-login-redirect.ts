@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ProfileRow } from "../types/database";
+import type { ProfileRowForLoginRedirect } from "../types/database";
+import type { TypedSupabaseClient } from "./supabase-database";
 import { studentProfileNeedsCompletion } from "./student-profile-completion";
 
 export function getSessionIdFromToken(token?: string | null): string | null {
@@ -26,6 +27,7 @@ export async function completeLoginRedirect(
   router: RouterLike,
   options?: { redirectTo?: string | null }
 ): Promise<void> {
+  const typedSupabase = supabase as TypedSupabaseClient;
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -37,7 +39,7 @@ export async function completeLoginRedirect(
   const userId = session.user.id;
   const sessionId = getSessionIdFromToken(session.access_token);
 
-  const { data: profileData } = await supabase
+  const { data: profileData } = await typedSupabase
     .from("profiles")
     .select(
       "security_signed, role, full_name, address_street_number, address_street_name, address_ward, phone, data_sharing_consent_at"
@@ -45,23 +47,14 @@ export async function completeLoginRedirect(
     .eq("id", userId)
     .single();
 
-  const profile = profileData as
-    | (Pick<ProfileRow, "security_signed" | "role"> & {
-        full_name?: string | null;
-        address_street_number?: string | null;
-        address_street_name?: string | null;
-        address_ward?: string | null;
-        phone?: string | null;
-        data_sharing_consent_at?: string | null;
-      })
-    | null;
+  const profile = profileData as ProfileRowForLoginRedirect | null;
 
   const { error: revokeError } = await supabase.auth.signOut({ scope: "others" });
   if (revokeError) {
     console.warn("Không thể thu hồi toàn bộ phiên cũ:", revokeError.message);
   }
 
-  await supabase.from("profiles").update({ last_session_id: sessionId || null }).eq("id", userId);
+  await typedSupabase.from("profiles").update({ last_session_id: sessionId || null }).eq("id", userId);
 
   let safeTo = "/";
   if (options?.redirectTo != null && options.redirectTo !== "") {

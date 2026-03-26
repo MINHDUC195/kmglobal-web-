@@ -16,7 +16,8 @@
     "generate:logo-block-light-png": "node scripts/generate-logo-block-light-png.mjs",
     "generate:logo-block-transparent-png": "node scripts/generate-logo-block-transparent-png.mjs",
     "seed:owner": "node scripts/seed-owner.mjs",
-    "check:env": "node scripts/check-production-env.mjs"
+    "check:env": "node scripts/check-production-env.mjs",
+    "types:supabase": "node scripts/gen-supabase-types.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

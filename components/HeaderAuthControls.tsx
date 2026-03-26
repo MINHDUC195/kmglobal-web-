@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "../lib/supabase-browser";
-import type { ProfileRow } from "../types/database";
+import type { ProfileHeaderSnippet } from "../types/database";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -31,7 +31,7 @@ export default function HeaderAuthControls() {
           .eq("id", user.id)
           .single();
 
-        const profileData = profile as Pick<ProfileRow, "full_name" | "role"> | null;
+        const profileData = profile as ProfileHeaderSnippet | null;
         setCurrentUserName(profileData?.full_name?.trim() || "bạn");
         if (profileData?.role === "owner") setDashboardHref("/owner");
         else if (profileData?.role === "admin") setDashboardHref("/admin");
