@@ -19,8 +19,18 @@ export function getSessionIdFromToken(token?: string | null): string | null {
 
 type RouterLike = { push: (href: string) => void };
 
+/** Đích mặc định sau đăng nhập khi không có deep link (`?to=` trống hoặc `/`). */
+export function defaultPostLoginPathForRole(role: string | undefined | null): "/owner" | "/admin" | "/student" {
+  if (role === "owner") return "/owner";
+  if (role === "admin") return "/admin";
+  return "/student";
+}
+
 /**
  * Sau khi Supabase đã có session (mật khẩu, OTP, magic link…): thu hồi phiên cũ, cập nhật profile, redirect.
+ *
+ * **Ưu tiên `?to=` / `redirectTo`:** Nếu có đường dẫn nội bộ hợp lệ và khác `/` → dùng làm đích (sau agree-terms / hoàn hồ sơ nếu cần).
+ * Ngược lại → dashboard theo `role` (`/owner`, `/admin`, `/student`).
  */
 export async function completeLoginRedirect(
   supabase: SupabaseClient,
@@ -56,15 +66,17 @@ export async function completeLoginRedirect(
 
   await typedSupabase.from("profiles").update({ last_session_id: sessionId || null }).eq("id", userId);
 
-  let safeTo = "/";
+  let candidate: string | null = null;
   if (options?.redirectTo != null && options.redirectTo !== "") {
     const t = options.redirectTo;
-    if (t.startsWith("/") && !t.startsWith("//")) safeTo = t;
+    if (t.startsWith("/") && !t.startsWith("//")) candidate = t;
   } else if (typeof window !== "undefined") {
-    const params = new URLSearchParams(window.location.search);
-    const to = params.get("to");
-    if (to && to.startsWith("/") && !to.startsWith("//")) safeTo = to;
+    const to = new URLSearchParams(window.location.search).get("to");
+    if (to && to.startsWith("/") && !to.startsWith("//")) candidate = to;
   }
+
+  const dashboard = defaultPostLoginPathForRole(profile?.role);
+  const safeTo = candidate && candidate !== "/" ? candidate : dashboard;
 
   if (!profile?.security_signed) {
     router.push(`/auth/agree-terms?to=${encodeURIComponent(safeTo)}`);

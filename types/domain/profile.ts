@@ -25,6 +25,7 @@ export interface ProfileRow {
 /**
  * Cột trả về từ query trong `completeLoginRedirect`
  * (.select security_signed, role, full_name, address_*, phone, data_sharing_consent_at).
+ * Đích redirect mặc định (khi không có `?to=` hợp lệ khác `/`): xem `defaultPostLoginPathForRole` trong `lib/complete-login-redirect.ts`.
  */
 export interface ProfileRowForLoginRedirect {
   security_signed: boolean;
