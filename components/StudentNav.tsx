@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   computeUnreadCount,
@@ -19,11 +19,16 @@ const navItems = [
 
 export default function StudentNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [replySummary, setReplySummary] = useState<QuestionReplySummaryItem[]>([]);
   const replyCount = useMemo(() => computeUnreadCount(replySummary), [replySummary]);
 
   useEffect(() => {
     let mounted = true;
+
+    navItems.forEach((item) => {
+      router.prefetch(item.href);
+    });
 
     async function loadReplySummary() {
       try {
@@ -51,7 +56,7 @@ export default function StudentNav() {
       mounted = false;
       window.removeEventListener(seenEventName, handleSeenChanged);
     };
-  }, []);
+  }, [router]);
 
   function handleQuestionsNavClick() {
     markAllQuestionsSeen(replySummary);
