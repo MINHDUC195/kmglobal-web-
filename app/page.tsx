@@ -42,25 +42,34 @@ const ABOUT_ITEMS = [
 export default async function LandingPage({ searchParams }: LandingPageProps) {
   const { toast } = await searchParams;
 
-  const programs = await getCachedApprovedPrograms();
-  const allCourses = await getCachedRegularCoursesCatalog();
+  const [programs, allCourses, supabase] = await Promise.all([
+    getCachedApprovedPrograms(),
+    getCachedRegularCoursesCatalog(),
+    createServerSupabaseClient(),
+  ]);
 
   const admin = getSupabaseAdminClient();
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const enrolledByCourse = new Map<string, string>();
+  let baseCourseIdsToHide = new Set<string>();
+
   if (user) {
-    const { data: enrolls } = await admin
-      .from("enrollments")
-      .select("id, regular_course_id")
-      .eq("user_id", user.id)
-      .eq("status", "active");
-    for (const e of enrolls ?? []) {
+    const [enrollRes, hideRes] = await Promise.all([
+      admin
+        .from("enrollments")
+        .select("id, regular_course_id")
+        .eq("user_id", user.id)
+        .eq("status", "active"),
+      getBaseCourseIdsToHideForUser(admin, user.id),
+    ]);
+    for (const e of enrollRes.data ?? []) {
       if (e.regular_course_id) enrolledByCourse.set(e.regular_course_id, e.id);
     }
+    baseCourseIdsToHide = hideRes;
   }
-
-  const baseCourseIdsToHide = await getBaseCourseIdsToHideForUser(admin, user?.id ?? null);
 
   const now = new Date();
   let openCourses = (allCourses ?? []).filter(
@@ -95,9 +104,9 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
 
       {/* Nav */}
       <nav className="relative z-20 w-full border-b border-white/8 bg-[#0a1628]/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[var(--container-max)] items-center justify-between px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-[var(--container-max)] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
           <NavLogoWithBanner />
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center justify-end sm:flex-none sm:justify-end">
             <HeaderAuthControls />
           </div>
         </div>

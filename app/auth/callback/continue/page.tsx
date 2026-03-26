@@ -76,7 +76,6 @@ export default function AuthCallbackContinuePage() {
           return;
         }
 
-        await supabase.auth.getSession();
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -92,7 +91,7 @@ export default function AuthCallbackContinuePage() {
 
         const hasHash = window.location.hash?.length > 0;
         if (hasHash) {
-          await new Promise((r) => setTimeout(r, 800));
+          await new Promise((r) => setTimeout(r, 400));
           const {
             data: { session: retrySession },
           } = await supabase.auth.getSession();
