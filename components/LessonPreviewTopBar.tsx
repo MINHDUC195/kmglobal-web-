@@ -43,11 +43,11 @@ export default function LessonPreviewTopBar({ children, programName }: LessonPre
       <div className="w-full px-3 sm:px-6 xl:px-10">
         {/* Row 1: Logo + user actions */}
         <div className="flex items-center justify-between gap-3 py-3 lg:gap-6 lg:py-4">
-          <div className="pl-0.5 lg:pl-1">
+          <div className="flex min-w-0 items-center gap-3 pl-0.5 lg:gap-5 lg:pl-1">
             <NavLogoWithBanner variant="transparent" scale={0.96} />
             {programName && (
-              <p className="mt-1 max-w-[40rem] truncate text-xs font-medium text-[#486581]">
-                Chương trình học: <span className="text-[#102A43]">{programName}</span>
+              <p className="hidden max-w-[34rem] truncate text-xs font-semibold uppercase tracking-wide text-[#334E68] md:block">
+                {programName}
               </p>
             )}
           </div>

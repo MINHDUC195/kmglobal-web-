@@ -9,6 +9,13 @@ export type Option = {
   option_text: string;
 };
 
+function optionIdMatchingDisplay(options: Option[], display: string): string | null {
+  const normalized = display.trim();
+  if (!normalized) return null;
+  const found = options.find((o) => o.option_text.trim() === normalized);
+  return found?.id ?? null;
+}
+
 type QuizSingleChoiceProps = {
   questionId: string;
   content: string;
@@ -92,6 +99,12 @@ export default function QuizSingleChoice({
   const optTextCls = isLight ? "text-gray-700" : "text-gray-200";
   const resultCorrectCls = isLight ? "text-emerald-600" : "text-emerald-400";
   const resultWrongCls = isLight ? "text-amber-600" : "text-amber-400";
+  const studentDisplay =
+    result?.studentAnswerDisplay ?? (revealed ? initialStudentAnswerDisplay : undefined);
+  const correctDisplay =
+    result?.correctAnswerDisplay ?? (revealed ? initialCorrectAnswerDisplay : undefined);
+  const studentSelectedId = studentDisplay ? optionIdMatchingDisplay(options, studentDisplay) : null;
+  const correctOptionId = correctDisplay ? optionIdMatchingDisplay(options, correctDisplay) : null;
 
   function handleRetry() {
     setResult(null);
@@ -133,25 +146,51 @@ export default function QuizSingleChoice({
       )}
       <p className={contentCls}>{content}</p>
       <div className="space-y-2">
-        {options.map((opt) => (
-          <label
-            key={opt.id}
-            className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition ${
-              selectedId === opt.id ? optSelected : optBase
-            } ${result || locked ? "pointer-events-none opacity-70" : ""}`}
-          >
-            <input
-              type="radio"
-              name={`q-${questionId}`}
-              value={opt.id}
-              checked={selectedId === opt.id}
-              onChange={() => !locked && setSelectedId(opt.id)}
-              disabled={!!result || locked || disabled}
-              className="h-4 w-4 accent-[#D4AF37]"
-            />
-            <span className={optTextCls}>{opt.option_text}</span>
-          </label>
-        ))}
+        {options.map((opt) => {
+          const isUserSelected =
+            result || locked ? studentSelectedId === opt.id || selectedId === opt.id : selectedId === opt.id;
+          const isCorrectOption = showAnswerDetails && correctOptionId === opt.id;
+          const optHighlight =
+            showAnswerDetails && isCorrectOption
+              ? "border-amber-400 bg-amber-50"
+              : isUserSelected
+                ? optSelected
+                : optBase;
+          return (
+            <label
+              key={opt.id}
+              className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition ${
+                optHighlight
+              } ${result || locked ? "pointer-events-none opacity-70" : ""}`}
+            >
+              <input
+                type="radio"
+                name={`q-${questionId}`}
+                value={opt.id}
+                checked={isUserSelected}
+                onChange={() => !locked && setSelectedId(opt.id)}
+                disabled={!!result || locked || disabled}
+                className="h-4 w-4 accent-[#D4AF37]"
+              />
+              {showAnswerDetails && (
+                <span
+                  className={`text-xs font-bold ${
+                    isUserSelected ? "text-black" : "text-transparent"
+                  }`}
+                  title={isUserSelected ? "Đáp án học viên đã chọn" : undefined}
+                >
+                  ✓
+                </span>
+              )}
+              <span className={optTextCls}>{opt.option_text}</span>
+              {isCorrectOption && (
+                <span className="ml-auto font-semibold text-emerald-600" title="Đáp án đúng">
+                  ✓
+                </span>
+              )}
+            </label>
+          );
+        })}
       </div>
       {showSubmitButton && (
         <button

@@ -74,7 +74,7 @@ export async function GET(
             .order("sort_order", { ascending: true }),
           admin
             .from("regular_courses")
-            .select("name")
+            .select("name, base_course_id")
             .eq("id", enrollment.regular_course_id)
             .single(),
           admin
@@ -87,6 +87,25 @@ export async function GET(
       const chapterLessons = chapterLessonsRes.data;
       const rcWithName = rcWithNameRes.data;
       const progressRows = progressRowsRes.data;
+
+      let programName: string | null = null;
+      const baseCourseIdFromCourse = (rcWithName as { base_course_id?: string | null } | null)?.base_course_id;
+      if (baseCourseIdFromCourse) {
+        const { data: baseCourse } = await admin
+          .from("base_courses")
+          .select("program_id")
+          .eq("id", baseCourseIdFromCourse)
+          .single();
+        const programId = (baseCourse as { program_id?: string | null } | null)?.program_id;
+        if (programId) {
+          const { data: program } = await admin
+            .from("programs")
+            .select("name")
+            .eq("id", programId)
+            .single();
+          programName = (program as { name?: string | null } | null)?.name?.trim() ?? null;
+        }
+      }
 
       const completedLessonIds = (progressRows ?? []).map((p) => p.lesson_id);
       const sortedLessons = (chapterLessons ?? []).sort(
@@ -106,6 +125,7 @@ export async function GET(
         video_url: lesson.video_url,
         document_url: lesson.document_url,
         courseName: (rcWithName as { name?: string } | null)?.name ?? "Khóa học",
+        programName,
         chapter: chapterFull
           ? { id: chapterFull.id, name: chapterFull.name, sort_order: chapterFull.sort_order }
           : null,

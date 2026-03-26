@@ -220,15 +220,17 @@ export default function QuizMultipleChoice({
           const isUserSelected = displaySelectedIds.has(opt.id);
           const isCorrectOption = correctOptionIds.has(opt.id);
           const optHighlight =
-            result || locked
-              ? isUserSelected
-                ? isLight
-                  ? "border-amber-400 bg-amber-50"
-                  : "border-amber-400/70 bg-amber-400/10"
-                : optBase
-              : isUserSelected
-                ? optSelected
-                : optBase;
+            showAnswerDetails && isCorrectOption
+              ? "border-amber-400 bg-amber-50"
+              : result || locked
+                ? isUserSelected
+                  ? isLight
+                    ? "border-[#9FB3C8] bg-[#F0F4F8]"
+                    : "border-white/20 bg-white/10"
+                  : optBase
+                : isUserSelected
+                  ? optSelected
+                  : optBase;
           return (
             <label
               key={opt.id}
@@ -243,6 +245,16 @@ export default function QuizMultipleChoice({
                 disabled={!!result || locked || disabled}
                 className="h-4 w-4 accent-[#D4AF37]"
               />
+              {showAnswerDetails && (
+                <span
+                  className={`text-xs font-bold ${
+                    isUserSelected ? "text-black" : "text-transparent"
+                  }`}
+                  title={isUserSelected ? "Đáp án học viên đã chọn" : undefined}
+                >
+                  ✓
+                </span>
+              )}
               <span className={optTextCls}>{opt.option_text}</span>
               {showAnswerDetails && isCorrectOption && (
                 <span

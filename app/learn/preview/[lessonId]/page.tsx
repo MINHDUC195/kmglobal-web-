@@ -23,6 +23,7 @@ type Lesson = {
   video_url: string | null;
   document_url: string | null;
   courseName?: string;
+  programName?: string | null;
   chapter?: { id: string; name: string; sort_order: number } | null;
   chapterLessons?: ChapterLesson[];
   prevLessonId?: string | null;
@@ -396,7 +397,7 @@ function PreviewLessonContent() {
   if (useEdXLayout) {
     return (
       <div className="flex min-h-screen flex-col bg-[#F4F7FB]">
-        <LessonPreviewTopBar programName={lesson.courseName}>
+        <LessonPreviewTopBar programName={lesson.programName}>
           <LessonBreadcrumbs
             courseName={lesson.courseName}
             chapterName={lesson.chapter?.name}
@@ -405,7 +406,7 @@ function PreviewLessonContent() {
             onMenuClick={() => setSidebarOpen(true)}
           />
         </LessonPreviewTopBar>
-        <div className="flex flex-1">
+        <div className="flex flex-1 bg-[#EEF2F7]">
           <LessonPreviewSidebar
             chapterName={lesson.chapter!.name}
             chapterLessons={lesson.chapterLessons!}
@@ -415,15 +416,17 @@ function PreviewLessonContent() {
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
           />
-          <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8">
-            <h1 className="text-2xl font-bold text-[#0F2D4A]">{lesson.name}</h1>
-            {lesson.description && (
-              <p className="mt-2 text-gray-600">{lesson.description}</p>
-            )}
+          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+              <h1 className="text-2xl font-bold text-[#0F2D4A]">{lesson.name}</h1>
+              {lesson.description && (
+                <p className="mt-2 text-gray-600">{lesson.description}</p>
+              )}
+            </section>
 
-            <div className="mt-10 space-y-12">
+            <div className="mt-6 space-y-6">
               {lesson.video_url && (
-                <section>
+                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                   <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Video</h2>
                   <BunnyVideoPlayer
                     lessonId={lessonId}
@@ -434,7 +437,7 @@ function PreviewLessonContent() {
               )}
 
               {lesson.document_url && (
-                <section>
+                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                   <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Tài liệu</h2>
                   <PDFViewer
                     lessonId={lessonId}
@@ -445,14 +448,14 @@ function PreviewLessonContent() {
               )}
 
               {questionsLoading ? (
-                <section>
+                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                   <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">Câu hỏi kiểm tra</h2>
                   <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
                     Đang tải câu hỏi...
                   </p>
                 </section>
               ) : questions.length > 0 ? (
-                <section>
+                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                   <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">
                     Câu hỏi kiểm tra
                   </h2>
@@ -530,7 +533,7 @@ function PreviewLessonContent() {
                   </div>
                 </section>
               ) : (
-                <section>
+                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                   <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">
                     Bài tập kiểm tra
                   </h2>
@@ -542,7 +545,7 @@ function PreviewLessonContent() {
               )}
 
               {enrollmentId && (
-                <section>
+                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-[#0F2D4A]">Thảo luận</h2>
                     <button
@@ -569,11 +572,13 @@ function PreviewLessonContent() {
               )}
             </div>
 
-            <LessonPrevNext
-              prevLessonId={lesson.prevLessonId ?? null}
-              nextLessonId={lesson.nextLessonId ?? null}
-              enrollmentId={enrollmentId}
-            />
+            <div className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+              <LessonPrevNext
+                prevLessonId={lesson.prevLessonId ?? null}
+                nextLessonId={lesson.nextLessonId ?? null}
+                enrollmentId={enrollmentId}
+              />
+            </div>
           </main>
         </div>
         <Footer hideLogo variant="light" />
@@ -584,7 +589,7 @@ function PreviewLessonContent() {
   // Simple layout (no enrollmentId or no chapter context)
   return (
     <div className="min-h-screen bg-[#F4F7FB]">
-      <LessonPreviewTopBar programName={lesson.courseName}>
+      <LessonPreviewTopBar programName={lesson.programName}>
         <LessonBreadcrumbs
           lessonName={lesson.name}
           enrollmentId={enrollmentId}
