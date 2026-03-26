@@ -14,13 +14,13 @@ Biến thể được hiểu tương đương: `OK RUN`, `ok run`, "chạy OK RU
 1. **Thực hiện toàn bộ** các lệnh / bước / phương án đã thảo luận trong phiên (test, build, script, migration cục bộ khi đã nói rõ, v.v.) — **không** hỏi lại "có chạy không" sau khi user đã OK RUN.
 2. **Công cụ:** ưu tiên **chạy thật** thay vì chỉ đưa lệnh cho user; dùng cờ **không tương tác** khi phù hợp (`--yes`, v.v.) để không bị kẹt chờ bấm Accept từng bước không cần thiết.
 3. **Fetch / mạng:** nếu cần kiểm tra URL, deployment, API — **gọi công cụ** (fetch, terminal) thay vì mô tả suông.
-4. **Kết thúc:** chạy **đầy đủ** quy trình **OK update** (Git commit + push, kiểm tra Vercel khi có thể, nhắc Supabase migration nếu có thay đổi schema) theo `ok-update-sync.mdc`, **trừ** khi user trong phiên đã nói rõ **không commit**, **không push**, hoặc **chỉ local**.
+4. **Kết thúc:** chạy **đầy đủ** quy trình **OK update** (Git commit + push, **`supabase db push`**, kiểm tra Vercel khi có thể) theo `ok-update-sync.mdc`, **trừ** khi user trong phiên đã nói rõ **không commit**, **không push**, **không đụng Supabase**, hoặc **chỉ local**.
 
 ## OK update và tự động hóa
 
-Khi user nói **OK update** (hoặc tương đương trong `ok-update-sync.mdc`), áp dụng **cùng tinh thần**: tự **chạy** các bước có thể (stage, commit, push, kiểm tra deploy), không dừng lại chỉ để liệt kê lệnh nếu môi trường cho phép thực thi.
+Khi user nói **OK update** (hoặc tương đương trong `ok-update-sync.mdc`), áp dụng **cùng tinh thần**: tự **chạy** các bước có thể (stage, commit, push, **`supabase db push`**, kiểm tra deploy), không dừng lại chỉ để liệt kê lệnh nếu môi trường cho phép thực thi.
 
 ## Ngoại lệ
 
 - Tuân thủ yêu cầu explicit: không push/commit khi user cấm.
-- Không commit secret / key; Supabase: migration nhắc trong Dashboard/SQL khi không link CLI — không bịa chạy migration lên cloud nếu không có quyền/tool.
+- Không commit secret / key. Nếu **`supabase db push`** thất bại (CLI chưa link, lỗi auth): báo output và hướng dẫn SQL Editor / `supabase link` — không giả định đã push DB thành công.

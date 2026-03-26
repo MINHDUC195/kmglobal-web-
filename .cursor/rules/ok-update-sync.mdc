@@ -15,12 +15,12 @@ alwaysApply: true
 
 1. **Mặc định (tự động):** Cuối phiên, khi agent **đã hoàn tất** sửa đổi / cải tiến code hoặc tài sản trong repo và còn **thay đổi chưa commit**, agent **chủ động** chạy quy trình đồng bộ bên dưới — **không** cần user gõ "OK update", trừ các trường hợp ngoại lệ.
 
-2. **Lệnh tường minh:** User vẫn có thể viết **OK update** (hoặc "ok, update", "OK, đồng bộ") để bắt buộc chạy full quy trình hoặc đóng phiên sau khi tự kiểm thử. Khi đó agent **tự chạy** các bước (git, push, kiểm tra deploy khi có thể) — xem thêm `ok-run.mdc` (OK RUN / tự động hóa).
+2. **Lệnh tường minh:** User vẫn có thể viết **OK update** (hoặc "ok, update", "OK, đồng bộ") để bắt buộc chạy full quy trình hoặc đóng phiên sau khi tự kiểm thử. Khi đó agent **tự chạy** các bước (git, push, **`supabase db push`**, kiểm tra deploy khi có thể) — xem thêm `ok-run.mdc` (OK RUN / tự động hóa).
 
 ## Ngoại lệ — không tự push
 
 - Phiên chỉ **đọc / giải thích / tư vấn**, không có diff trong repo.
-- User yêu cầu **không commit**, **không push**, hoặc **chỉ local**.
+- User yêu cầu **không commit**, **không push**, **chỉ local**, hoặc **không chạy Supabase / không db push**.
 - Thay đổi **nháp** mà user nói sẽ tự commit sau.
 
 ## Thứ tự thực hiện
@@ -34,13 +34,12 @@ alwaysApply: true
    - Nếu cần deploy tay hoặc env mới: `npx vercel --prod --yes` từ root repo; đảm bảo biến `NEXT_PUBLIC_*` / server đúng (xem `docs/PRODUCTION_AND_UAT.md`).
 
 3. **Supabase**
-   - **Không** có nút “đồng bộ toàn bộ repo lên Supabase cloud” một lần.
-   - **Schema:** áp dụng migration còn thiếu — `supabase/migrations/` theo thứ tự, hoặc SQL Editor với file tương ứng / `RUN_MIGRATION_*.sql` trong `supabase/` (xem `supabase/README.md`, `supabase/DEPLOY_CHECKLIST.md`).
+   - **Luôn** chạy **`supabase db push`** từ **root repo** trong bước OK update (áp migration local lên project đã **link**). Ưu tiên lệnh thật; nếu CLI chưa cài, chưa `supabase link`, hoặc lỗi auth/mạng → báo rõ output và **fallback:** SQL Editor với file trong `supabase/migrations/` theo thứ tự (xem `supabase/README.md`, `supabase/DEPLOY_CHECKLIST.md`).
    - **Auth / URL:** Site URL, Redirect URLs trong Dashboard nếu thay đổi domain.
    - **Secrets:** chỉ trong Dashboard hoặc CLI đã link project — không commit key.
 
 ## Lưu ý
 
-- Tự đồng bộ sau sửa đổi: thực hiện **đầy đủ** các bước Git + xác nhận Vercel khi có mạng; **nhắc** migration Supabase nếu commit có file migration mới hoặc schema phụ thuộc.
+- Tự đồng bộ sau sửa đổi: thực hiện **đầy đủ** các bước Git + **`supabase db push`** (hoặc fallback SQL) + xác nhận Vercel khi có mạng.
 - Nếu không chắc migration nào đã chạy trên production, liệt kê file cần apply và cảnh báo backup trước khi chạy SQL phá vỡ dữ liệu.
 - Chỉ báo khi hoàn tất hoặc khi gặp sự cố cần user xử lý (conflict, auth git, v.v.).
