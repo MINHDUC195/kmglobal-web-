@@ -3,7 +3,6 @@ import { createServerSupabaseClient } from "../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../lib/supabase-admin";
 import { getSalePriceCents } from "../../lib/course-price";
 import { resolveEnrollmentPaymentAccess } from "../../lib/enrollment-payment-status";
-import { loadLessonQuestionsForStudent } from "../../lib/lesson-questions-student";
 import ProgressBar from "../../components/ProgressBar";
 import SelfTempLockSection from "../../components/SelfTempLockSection";
 import CancelEnrollmentButton from "../../components/CancelEnrollmentButton";
@@ -95,8 +94,6 @@ export default async function StudentDashboardPage() {
     });
   }
 
-  const lessonQuestions = await loadLessonQuestionsForStudent(user.id);
-
   const { data: anyPaid } = await admin
     .from("payments")
     .select("id")
@@ -124,7 +121,17 @@ export default async function StudentDashboardPage() {
             >
               <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                 <div className="min-w-0">
-                  <p className="text-base font-semibold text-white sm:text-lg">{e.courseName}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-base font-semibold text-white sm:text-lg">{e.courseName}</p>
+                    {e.needsPayment && e.salePriceCents > 0 && (
+                      <Link
+                        href={`/checkout?courseId=${e.courseId}`}
+                        className="inline-flex items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-400/20"
+                      >
+                        Nâng cấp
+                      </Link>
+                    )}
+                  </div>
                   {e.salePriceCents > 0 && e.needsPayment && (
                     <p className="mt-1 text-xs font-semibold text-amber-300">
                       Bạn Đang ở chế độ học thử
@@ -171,27 +178,12 @@ export default async function StudentDashboardPage() {
                 <div className="flex shrink-0 flex-col gap-2 lg:min-w-[220px]">
                   <Link
                     href={`/learn/${e.id}`}
-                    className="inline-flex items-center justify-center rounded-full bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-black hover:bg-[#E7C768]"
+                    className="inline-flex items-center justify-center rounded-full bg-[#6FCF97] px-5 py-2.5 text-sm font-semibold text-[#063A1E] hover:bg-[#7FDCAB]"
                   >
                     Vào học
                   </Link>
-                  {e.needsPayment && e.salePriceCents > 0 && (
-                    <Link
-                      href={`/checkout?courseId=${e.courseId}`}
-                      className="inline-flex items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/10 px-5 py-2.5 text-sm font-semibold text-amber-200 hover:bg-amber-400/20"
-                    >
-                      Nâng cấp
-                    </Link>
-                  )}
+                  <CancelEnrollmentButton enrollmentId={e.id} courseName={e.courseName} variant="onDark" />
                 </div>
-              </div>
-              <div className="mt-4 border-t border-[#1E365A] pt-4 sm:flex sm:justify-end">
-                <CancelEnrollmentButton
-                  enrollmentId={e.id}
-                  courseName={e.courseName}
-                  variant="onDark"
-                  className="w-full sm:w-auto"
-                />
               </div>
             </div>
           ))}
@@ -220,55 +212,6 @@ export default async function StudentDashboardPage() {
       )}
 
       <SelfTempLockSection hasPaidBefore={hasPaidBefore} />
-
-      {lessonQuestions.length > 0 && (
-        <section className="mt-14">
-          <h2 className="font-[family-name:var(--font-serif)] text-xl font-bold text-[#D4AF37]">
-            Hỏi đáp bài học
-          </h2>
-          <p className="mt-2 text-sm text-gray-400">
-            Câu hỏi của bạn và phản hồi từ giảng viên. Mở bài học để xem chi tiết hội thoại.
-          </p>
-          <div className="mt-6 space-y-4">
-            {lessonQuestions.map((q) => {
-              const href = q.enrollmentId
-                ? `/learn/preview/${q.lesson_id}?enrollmentId=${encodeURIComponent(q.enrollmentId)}`
-                : `/learn/preview/${q.lesson_id}`;
-              return (
-                <div
-                  key={q.id}
-                  className="rounded-xl border border-white/10 bg-white/5 px-5 py-4 transition hover:bg-white/10"
-                >
-                  <p className="text-xs text-gray-500">
-                    {q.programName} · {q.baseCourseName} · {q.lessonName}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-sm text-gray-200">{q.content}</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <span className="text-xs text-gray-500">
-                      {new Date(q.created_at).toLocaleDateString("vi-VN")}
-                    </span>
-                    {q.hasReplies ? (
-                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-400">
-                        Đã có trả lời
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
-                        Chờ trả lời
-                      </span>
-                    )}
-                    <Link
-                      href={href}
-                      className="text-sm font-medium text-[#D4AF37] hover:underline"
-                    >
-                      Vào bài học
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
     </>
   );
 }
