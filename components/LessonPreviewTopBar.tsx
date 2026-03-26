@@ -46,9 +46,12 @@ export default function LessonPreviewTopBar({ children, programName }: LessonPre
           <div className="flex min-w-0 items-center gap-3 pl-0.5 lg:gap-5 lg:pl-1">
             <NavLogoWithBanner variant="transparent" scale={0.96} />
             {programName && (
-              <p className="hidden max-w-[34rem] truncate text-xs font-semibold uppercase tracking-wide text-[#334E68] md:block">
-                {programName}
-              </p>
+              <div className="hidden min-w-0 items-center gap-2 rounded-full border border-[#C7D2E0] bg-[#EEF3F8] px-3 py-1.5 lg:flex">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#D4AF37]" />
+                <p className="max-w-[26rem] truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-[#243B53]">
+                  {programName}
+                </p>
+              </div>
             )}
           </div>
           <div className="mr-0.5 flex shrink-0 items-center gap-2 rounded-full border border-[#D9E2EC] bg-white/85 px-3 py-1.5 shadow-sm sm:gap-3 sm:px-4">
