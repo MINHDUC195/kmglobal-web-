@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
       .eq("user_id", userId)
       .eq("gateway", gateway)
       .eq("status", "pending")
-      .contains("metadata", { course_id: normalizedCourseId })
+      .eq("checkout_course_id", normalizedCourseId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -277,17 +277,37 @@ export async function POST(request: NextRequest) {
         gateway_transaction_id: orderId,
         status: "pending",
         metadata: { course_id: normalizedCourseId },
+        checkout_course_id: normalizedCourseId,
       })
       .select("id")
       .single();
 
-    if (pErr || !payment) {
+    let resolvedPaymentId = payment?.id as string | undefined;
+
+    if (pErr?.code === "23505") {
+      const { data: afterRace } = await admin
+        .from("payments")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("gateway", gateway)
+        .eq("status", "pending")
+        .eq("checkout_course_id", normalizedCourseId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      resolvedPaymentId = afterRace?.id as string | undefined;
+    }
+
+    if (!resolvedPaymentId) {
+      if (pErr && pErr.code !== "23505") {
+        console.error("Checkout init insert payment:", pErr);
+      }
       return NextResponse.json({ error: "Không thể tạo giao dịch" }, { status: 500 });
     }
 
     let redirectUrl: string | null = null;
 
-    redirectUrl = await buildGatewayRedirect(payment.id);
+    redirectUrl = await buildGatewayRedirect(resolvedPaymentId);
 
     if (!redirectUrl) {
       return NextResponse.json({ error: `Cổng ${gateway} chưa được cấu hình` }, { status: 400 });
@@ -296,11 +316,16 @@ export async function POST(request: NextRequest) {
     if (idempotencyKey) {
       await setCheckoutIdempotency(idempotencyKey, {
         redirectUrl,
-        paymentId: payment.id,
+        paymentId: resolvedPaymentId,
       });
     }
 
-    return NextResponse.json({ redirectUrl, paymentId: payment.id });
+    const raced = Boolean(pErr?.code === "23505");
+    return NextResponse.json({
+      redirectUrl,
+      paymentId: resolvedPaymentId,
+      ...(raced ? { reused: true } : {}),
+    });
   } catch (err) {
     console.error("Checkout init error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

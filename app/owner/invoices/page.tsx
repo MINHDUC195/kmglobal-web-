@@ -204,6 +204,13 @@ export default function OwnerInvoicesPage() {
     };
   }, [items]);
 
+  const pendingPaymentCount = useMemo(
+    () =>
+      items.filter((r) => !r.enrollment_only && r.payment_status === "pending")
+        .length,
+    [items]
+  );
+
   return (
     <>
       <div className="mb-8 flex flex-wrap items-center gap-4">
@@ -226,7 +233,18 @@ export default function OwnerInvoicesPage() {
         ngoài phần mềm (MISA, Viettel, v.v.). Kết nối API tự động với nhà cung cấp hóa đơn có thể bổ sung sau nếu cần.
       </p>
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <p className="mt-3 max-w-3xl text-xs text-gray-500">
+        Tab <span className="text-gray-400">«Chờ xuất / cần rà soát»</span> chỉ gồm giao dịch{" "}
+        <strong className="text-gray-400">đã thanh toán xong</strong> và chưa đánh dấu xuất hóa đơn (hoặc cần rà soát).
+        Giao dịch <strong className="text-gray-400">chờ thanh toán</strong> (pending) nằm ở tab{" "}
+        <strong className="text-gray-400">Tất cả giao dịch</strong> hoặc trang{" "}
+        <Link href="/owner/reports" className="text-[#D4AF37] underline-offset-2 hover:underline">
+          Báo cáo tổng hợp
+        </Link>
+        .
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-2">
         {(
           [
             [
@@ -299,13 +317,32 @@ export default function OwnerInvoicesPage() {
         {loading ? (
           <p className="mt-6 text-gray-500">Đang tải...</p>
         ) : filtered.length === 0 ? (
-          <p className="mt-6 text-gray-500">
-            {filter === "vat_pending"
-              ? "Không có giao dịch nào cần xuất hoặc rà soát hóa đơn."
-              : filter === "vat_done"
-                ? "Chưa có giao dịch nào được đánh dấu đã xuất hóa đơn."
-                : "Chưa có dữ liệu giao dịch."}
-          </p>
+          <div className="mt-6 space-y-3 text-gray-500">
+            {filter === "vat_pending" ? (
+              <>
+                <p>
+                  {pendingPaymentCount > 0 ? (
+                    <>
+                      Tab này không liệt kê giao dịch <strong className="text-gray-600">chờ thanh toán</strong> — chỉ
+                      các giao dịch đã hoàn tất thanh toán và cần đối soát / đánh dấu xuất VAT. Hiện có{" "}
+                      <strong className="text-gray-600">{pendingPaymentCount}</strong> giao dịch pending trong hệ thống:
+                      bấm tab <strong className="text-gray-600">Tất cả giao dịch</strong> phía trên để xem, hoặc mở{" "}
+                      <Link href="/owner/reports" className="text-[#D4AF37] underline-offset-2 hover:underline">
+                        Báo cáo tổng hợp
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    <>Không có giao dịch nào cần xuất hoặc rà soát hóa đơn (trong các giao dịch đã thanh toán xong).</>
+                  )}
+                </p>
+              </>
+            ) : filter === "vat_done" ? (
+              <p>Chưa có giao dịch nào được đánh dấu đã xuất hóa đơn.</p>
+            ) : (
+              <p>Chưa có dữ liệu giao dịch.</p>
+            )}
+          </div>
         ) : (
           <div className="mt-6 space-y-3 md:hidden">
             {filtered.map((row) => {
