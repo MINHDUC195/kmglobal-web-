@@ -21,6 +21,10 @@ import {
 import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
 import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
+import {
+  ensureOrgDomainFreePaymentAndMarkUse,
+  resolveOrgDomainFreeEnrollment,
+} from "../../../../lib/org-domain";
 
 /** Khi migration `checkout_course_id` chưa áp trên Supabase, PostgREST báo lỗi cột / schema cache. */
 function isMissingCheckoutCourseIdColumn(err: unknown): boolean {
@@ -71,6 +75,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = user.id;
+    const userEmail = user.email ?? null;
 
     const profileBlock = await requireCompleteStudentProfileForApi(userId);
     if (profileBlock) return profileBlock;
@@ -190,6 +195,51 @@ export async function POST(request: NextRequest) {
     const amountCents = getSalePriceCents(priceCents, discountPercent);
     const amountVnd = amountCents;
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+
+    if (amountCents > 0 && baseCourseId) {
+      const org = await resolveOrgDomainFreeEnrollment(
+        admin,
+        userId,
+        userEmail,
+        baseCourseId
+      );
+      if (org.ok) {
+        const gate = await assertEnrollmentCanActivateAfterPayment(admin, userId, normalizedCourseId);
+        if (!gate.ok) {
+          return NextResponse.json({ error: gate.reason }, { status: 400 });
+        }
+        const freePayment = await ensureOrgDomainFreePaymentAndMarkUse(
+          admin,
+          userId,
+          normalizedCourseId,
+          org.entitlementId,
+          org.policyId,
+          org.markFirstUseAfterPayment
+        );
+        await admin.from("enrollments").upsert(
+          {
+            user_id: userId,
+            regular_course_id: normalizedCourseId,
+            payment_id: freePayment.paymentId,
+            status: "active",
+          },
+          { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
+        );
+        const { data: enrollment } = await admin
+          .from("enrollments")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("regular_course_id", normalizedCourseId)
+          .single();
+        const redirectUrl = enrollment?.id ? `${baseUrl}/learn/${enrollment.id}` : `${baseUrl}/student`;
+        return NextResponse.json({
+          redirectUrl,
+          paymentId: freePayment.paymentId,
+          free: true,
+          orgDomain: true,
+        });
+      }
+    }
 
     if (amountCents <= 0) {
       const gate = await assertEnrollmentCanActivateAfterPayment(admin, userId, normalizedCourseId);

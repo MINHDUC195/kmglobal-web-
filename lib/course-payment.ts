@@ -41,7 +41,10 @@ async function findCompletedPaymentForCourse(
 export async function ensureCompletedFreePaymentForCourse(
   admin: SupabaseClient,
   userId: string,
-  courseId: string
+  courseId: string,
+  options?: {
+    orgDomain?: { entitlementId: string; policyId: string };
+  }
 ): Promise<{ paymentId: string; reused: boolean }> {
   const existing = await findCompletedPaymentForCourse(admin, userId, courseId);
   if (existing) {
@@ -49,6 +52,13 @@ export async function ensureCompletedFreePaymentForCourse(
   }
 
   const now = new Date().toISOString();
+  const baseMeta: Record<string, unknown> = { course_id: courseId, source: "free_enrollment" };
+  if (options?.orgDomain) {
+    baseMeta.source = "org_domain";
+    baseMeta.org_domain_entitlement_id = options.orgDomain.entitlementId;
+    baseMeta.org_domain_policy_id = options.orgDomain.policyId;
+  }
+
   const { data, error } = await admin
     .from("payments")
     .insert({
@@ -58,7 +68,7 @@ export async function ensureCompletedFreePaymentForCourse(
       gateway: "internal_free",
       gateway_transaction_id: `FREE-${Date.now()}-${userId.slice(0, 8)}`,
       status: "completed",
-      metadata: { course_id: courseId, source: "free_enrollment" },
+      metadata: baseMeta as never,
       updated_at: now,
     })
     .select("id")

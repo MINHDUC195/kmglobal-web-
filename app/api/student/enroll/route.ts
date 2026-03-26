@@ -13,6 +13,10 @@ import { canReactivateCanceledEnrollment } from "../../../../lib/enrollment-reac
 import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 import { getSalePriceCents } from "../../../../lib/course-price";
 import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
+import {
+  ensureOrgDomainFreePaymentAndMarkUse,
+  resolveOrgDomainFreeEnrollment,
+} from "../../../../lib/org-domain";
 
 export async function POST(request: NextRequest) {
   const rl = await checkRateLimit(
@@ -35,6 +39,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Bạn cần đăng nhập để đăng ký" }, { status: 401 });
     }
+    const userEmail = user.email ?? null;
 
     const profileBlock = await requireCompleteStudentProfileForApi(user.id);
     if (profileBlock) return profileBlock;
@@ -152,8 +157,27 @@ export async function POST(request: NextRequest) {
       if (salePriceCents <= 0) {
         const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
         updates.payment_id = freePayment.paymentId;
+      } else if (baseCourseId) {
+        const org = await resolveOrgDomainFreeEnrollment(
+          admin,
+          user.id,
+          userEmail,
+          baseCourseId
+        );
+        if (org.ok) {
+          const fp = await ensureOrgDomainFreePaymentAndMarkUse(
+            admin,
+            user.id,
+            courseId,
+            org.entitlementId,
+            org.policyId,
+            org.markFirstUseAfterPayment
+          );
+          updates.payment_id = fp.paymentId;
+        } else {
+          updates.payment_id = null;
+        }
       } else {
-        // Khóa trả phí đăng ký lại: reset payment_id để phát sinh giao dịch mới khi checkout.
         updates.payment_id = null;
       }
       const { error: uErr } = await admin
@@ -188,6 +212,24 @@ export async function POST(request: NextRequest) {
     if (salePriceCents <= 0) {
       const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
       freePaymentId = freePayment.paymentId;
+    } else if (baseCourseId) {
+      const org = await resolveOrgDomainFreeEnrollment(
+        admin,
+        user.id,
+        userEmail,
+        baseCourseId
+      );
+      if (org.ok) {
+        const fp = await ensureOrgDomainFreePaymentAndMarkUse(
+          admin,
+          user.id,
+          courseId,
+          org.entitlementId,
+          org.policyId,
+          org.markFirstUseAfterPayment
+        );
+        freePaymentId = fp.paymentId;
+      }
     }
 
     const { data: enrollment, error: eErr } = await admin

@@ -45,6 +45,12 @@ const modules = [
     href: "/owner/legal",
     icon: "📜",
   },
+  {
+    title: "Miễn phí theo domain",
+    desc: "Tổ chức — whitelist email, suất, khóa cơ bản miễn phí",
+    href: "/owner/org-domain",
+    icon: "🏢",
+  },
 ];
 
 export default function OwnerDashboardPage() {
