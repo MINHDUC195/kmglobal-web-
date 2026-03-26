@@ -40,6 +40,18 @@ function normalizeDomain(raw: string): string | null {
   return t;
 }
 
+/** Bảng chưa tạo / schema cache PostgREST sau migration. */
+function isMissingOrgRelation(err: { message?: string; code?: string } | null): boolean {
+  if (!err) return false;
+  const m = (err.message || "").toLowerCase();
+  return (
+    m.includes("does not exist") ||
+    m.includes("schema cache") ||
+    err.code === "42P01" ||
+    err.code === "PGRST205"
+  );
+}
+
 export async function GET() {
   const auth = await ensureOwner();
   if (!auth.ok) {
@@ -54,17 +66,28 @@ export async function GET() {
 
   if (error) {
     console.error("org_domain_policies list:", error);
+    if (isMissingOrgRelation(error)) {
+      return NextResponse.json({
+        policies: [],
+        warning:
+          "CSDL chưa có bảng miễn phí theo domain. Trên Supabase, chạy migration: supabase/migrations/20260328120000_org_domain_entitlements.sql (SQL Editor hoặc supabase db push).",
+      });
+    }
     return NextResponse.json({ error: "Không tải được danh sách" }, { status: 500 });
   }
 
   const policies = rows ?? [];
   const counts: Record<string, number> = {};
   for (const p of policies) {
-    const { count } = await admin
+    const pid = (p as { id: string }).id;
+    const { count, error: cErr } = await admin
       .from("org_domain_entitlements")
       .select("*", { count: "exact", head: true })
-      .eq("policy_id", (p as { id: string }).id);
-    counts[(p as { id: string }).id] = count ?? 0;
+      .eq("policy_id", pid);
+    if (cErr && !isMissingOrgRelation(cErr)) {
+      console.error("org_domain_entitlements count:", cErr);
+    }
+    counts[pid] = cErr && !isMissingOrgRelation(cErr) ? 0 : count ?? 0;
   }
 
   return NextResponse.json({

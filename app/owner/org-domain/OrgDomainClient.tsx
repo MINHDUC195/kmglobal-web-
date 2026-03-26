@@ -35,6 +35,7 @@ export default function OrgDomainClient() {
   const [policies, setPolicies] = useState<PolicyList[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const [selectedProgramId, setSelectedProgramId] = useState<string>("");
   const selectedProgram = useMemo(
@@ -59,16 +60,35 @@ export default function OrgDomainClient() {
 
   const load = useCallback(async () => {
     setErr(null);
+    setWarning(null);
     setLoading(true);
     try {
-      const [pr, pl] = await Promise.all([
-        fetch("/api/owner/org-domain-programs").then((r) => r.json()),
-        fetch("/api/owner/org-domain-policies").then((r) => r.json()),
-      ]);
-      if (!pr.programs) throw new Error(pr.error || "Tải chương trình thất bại");
-      if (!pl.policies) throw new Error(pl.error || "Tải policy thất bại");
+      const prRes = await fetch("/api/owner/org-domain-programs", {
+        credentials: "same-origin",
+      });
+      const pr = await prRes.json();
+      if (!prRes.ok) {
+        throw new Error(pr.error || `Không tải được chương trình (${prRes.status})`);
+      }
+      if (!Array.isArray(pr.programs)) {
+        throw new Error(pr.error || "Phản hồi chương trình không hợp lệ");
+      }
       setPrograms(pr.programs);
+
+      const plRes = await fetch("/api/owner/org-domain-policies", {
+        credentials: "same-origin",
+      });
+      const pl = await plRes.json();
+      if (!plRes.ok) {
+        throw new Error(pl.error || `Không tải được policy (${plRes.status})`);
+      }
+      if (!Array.isArray(pl.policies)) {
+        throw new Error(pl.error || "Phản hồi policy không hợp lệ");
+      }
       setPolicies(pl.policies);
+      if (typeof pl.warning === "string" && pl.warning.trim()) {
+        setWarning(pl.warning.trim());
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
     } finally {
@@ -231,6 +251,11 @@ export default function OrgDomainClient() {
       {err && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {err}
+        </div>
+      )}
+      {warning && !err && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          {warning}
         </div>
       )}
 
