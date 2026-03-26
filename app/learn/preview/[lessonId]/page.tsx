@@ -47,6 +47,62 @@ type QuizQuestion = {
   course_expired_locked?: boolean;
 };
 
+const lessonPayloadCache = new Map<string, Lesson>();
+const quizPayloadCache = new Map<string, QuizQuestion[]>();
+const lessonPrefetchInFlight = new Map<string, Promise<void>>();
+const quizPrefetchInFlight = new Map<string, Promise<void>>();
+
+function cacheKey(lessonId: string, enrollmentId: string | null): string {
+  return `${lessonId}::${enrollmentId ?? ""}`;
+}
+
+async function prefetchLessonPayload(lessonId: string, enrollmentId: string | null): Promise<void> {
+  const key = cacheKey(lessonId, enrollmentId);
+  if (lessonPayloadCache.has(key)) return;
+  const existing = lessonPrefetchInFlight.get(key);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const lessonUrl = enrollmentId
+      ? `/api/lessons/${lessonId}?enrollmentId=${encodeURIComponent(enrollmentId)}`
+      : `/api/lessons/${lessonId}`;
+    const res = await fetch(lessonUrl);
+    if (!res.ok) return;
+    const payload = (await res.json()) as Lesson;
+    lessonPayloadCache.set(key, payload);
+  })()
+    .catch(() => {})
+    .finally(() => {
+      lessonPrefetchInFlight.delete(key);
+    });
+
+  lessonPrefetchInFlight.set(key, promise);
+  return promise;
+}
+
+async function prefetchQuizPayload(lessonId: string, enrollmentId: string | null): Promise<void> {
+  if (!enrollmentId) return;
+  const key = cacheKey(lessonId, enrollmentId);
+  if (quizPayloadCache.has(key)) return;
+  const existing = quizPrefetchInFlight.get(key);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const quizUrl = `/api/quiz/questions?lessonId=${lessonId}&enrollmentId=${encodeURIComponent(enrollmentId)}`;
+    const res = await fetch(quizUrl);
+    if (!res.ok) return;
+    const payload = (await res.json()) as { questions?: QuizQuestion[] };
+    quizPayloadCache.set(key, payload.questions ?? []);
+  })()
+    .catch(() => {})
+    .finally(() => {
+      quizPrefetchInFlight.delete(key);
+    });
+
+  quizPrefetchInFlight.set(key, promise);
+  return promise;
+}
+
 function PreviewLessonContent() {
   const router = useRouter();
   const params = useParams();
@@ -82,12 +138,27 @@ function PreviewLessonContent() {
       }
       setQuestionsLoading(true);
       const questionsUrl = `/api/quiz/questions?lessonId=${lessonId}&enrollmentId=${encodeURIComponent(enrollmentId)}`;
+      const key = cacheKey(lessonId, enrollmentId);
+      const cachedQuiz = quizPayloadCache.get(key);
+      if (cachedQuiz) {
+        if (!cancelled) {
+          setQuestions(cachedQuiz);
+          setQuestionsLoading(false);
+        }
+        // Revalidate quiz in background; UI uses cached result first.
+        void prefetchQuizPayload(lessonId, enrollmentId);
+        return;
+      }
       try {
         const questionsRes = await fetch(questionsUrl, { signal: quizAbort.signal });
         if (cancelled) return;
         if (questionsRes.ok) {
           const { questions: qs } = await questionsRes.json();
-          if (!cancelled) setQuestions(qs ?? []);
+          if (!cancelled) {
+            const normalized = qs ?? [];
+            setQuestions(normalized);
+            quizPayloadCache.set(key, normalized);
+          }
         } else if (!cancelled) {
           setQuestions([]);
         }
@@ -101,7 +172,14 @@ function PreviewLessonContent() {
     }
 
     async function loadLessonFirst() {
-      setLoading(true);
+      const key = cacheKey(lessonId, enrollmentId);
+      const cachedLesson = lessonPayloadCache.get(key);
+      if (cachedLesson) {
+        setLesson(cachedLesson);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       setError("");
       setQuestions([]);
       try {
@@ -127,6 +205,7 @@ function PreviewLessonContent() {
         const lessonData = await lessonRes.json();
         if (cancelled) return;
         setLesson(lessonData);
+        lessonPayloadCache.set(key, lessonData);
         setLoading(false);
 
         if (enrollmentId && !progressRecorded.current) {
@@ -163,6 +242,32 @@ function PreviewLessonContent() {
     }
     if (lesson.nextLessonId) {
       router.prefetch(`/learn/preview/${lesson.nextLessonId}${query}`);
+    }
+
+    const aroundIds = [lesson.prevLessonId, lesson.nextLessonId].filter(
+      (id): id is string => Boolean(id)
+    );
+    for (const id of aroundIds) {
+      void prefetchLessonPayload(id, enrollmentId);
+      void prefetchQuizPayload(id, enrollmentId);
+    }
+
+    const chapterIds = (lesson.chapterLessons ?? [])
+      .map((l) => l.id)
+      .filter((id) => id !== lesson.id)
+      .slice(0, 8);
+
+    const idle = () => {
+      chapterIds.forEach((id) => {
+        void prefetchLessonPayload(id, enrollmentId);
+      });
+    };
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      (window as Window & { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(
+        idle
+      );
+    } else {
+      setTimeout(idle, 200);
     }
   }, [router, enrollmentId, lesson]);
 
