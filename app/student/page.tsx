@@ -2,7 +2,6 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../lib/supabase-admin";
 import { getSalePriceCents } from "../../lib/course-price";
-import { resolveEnrollmentPaymentAccess } from "../../lib/enrollment-payment-status";
 import ProgressBar from "../../components/ProgressBar";
 import SelfTempLockSection from "../../components/SelfTempLockSection";
 import CancelEnrollmentButton from "../../components/CancelEnrollmentButton";
@@ -43,46 +42,83 @@ export default async function StudentDashboardPage() {
     daysUntilRegClose: number | null;
     daysUntilCourseEnd: number | null;
   }> = [];
+  const enrollmentRows = enrollments ?? [];
+  const baseCourseIds = [
+    ...new Set(
+      enrollmentRows
+        .map((e) => (e.regular_courses as { base_course?: { id?: string } } | null)?.base_course?.id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const enrollmentIds = enrollmentRows.map((e) => e.id);
+  const paymentIds = [
+    ...new Set(
+      enrollmentRows
+        .map((e) => e.payment_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
 
-  for (const e of enrollments ?? []) {
-    const baseCourseId = (e.regular_courses as { base_course?: { id?: string } } | null)?.base_course?.id;
-    let totalLessons = 0;
-    if (baseCourseId) {
-      const { data: chapters } = await admin
-        .from("chapters")
-        .select("id")
-        .eq("base_course_id", baseCourseId);
-      const chapterIds = (chapters ?? []).map((c) => c.id);
-      if (chapterIds.length > 0) {
-        const { count } = await admin
-          .from("lessons")
-          .select("id", { count: "exact", head: true })
-          .in("chapter_id", chapterIds);
-        totalLessons = count ?? 0;
-      }
-    }
-    const { data: progressRows } = await admin
-      .from("lesson_progress")
-      .select("lesson_id")
-      .eq("enrollment_id", e.id);
-    const completedCount = progressRows?.length ?? 0;
+  const [{ data: chapterRows }, { data: progressRows }, { data: paymentRows }] = await Promise.all([
+    baseCourseIds.length
+      ? admin.from("chapters").select("id, base_course_id").in("base_course_id", baseCourseIds)
+      : Promise.resolve({ data: [] as { id: string; base_course_id: string }[] }),
+    enrollmentIds.length
+      ? admin.from("lesson_progress").select("enrollment_id").in("enrollment_id", enrollmentIds)
+      : Promise.resolve({ data: [] as { enrollment_id: string }[] }),
+    paymentIds.length
+      ? admin.from("payments").select("id, status").in("id", paymentIds)
+      : Promise.resolve({ data: [] as { id: string; status: string }[] }),
+  ]);
 
+  const chapterList = chapterRows ?? [];
+  const chapterIds = chapterList.map((c) => c.id);
+  const { data: lessonRows } = chapterIds.length
+    ? await admin.from("lessons").select("chapter_id").in("chapter_id", chapterIds)
+    : { data: [] as { chapter_id: string }[] };
+
+  const chapterToBase = new Map(chapterList.map((c) => [c.id, c.base_course_id]));
+  const totalLessonsByBase = new Map<string, number>();
+  for (const lesson of lessonRows ?? []) {
+    const baseId = chapterToBase.get(lesson.chapter_id);
+    if (!baseId) continue;
+    totalLessonsByBase.set(baseId, (totalLessonsByBase.get(baseId) ?? 0) + 1);
+  }
+
+  const completedByEnrollment = new Map<string, number>();
+  for (const row of progressRows ?? []) {
+    completedByEnrollment.set(
+      row.enrollment_id,
+      (completedByEnrollment.get(row.enrollment_id) ?? 0) + 1
+    );
+  }
+
+  const paymentStatusById = new Map((paymentRows ?? []).map((p) => [p.id, p.status]));
+
+  for (const e of enrollmentRows) {
     const rc = e.regular_courses as {
+      name?: string | null;
       price_cents?: number | null;
       discount_percent?: number | null;
       registration_close_at?: string | null;
       course_end_at?: string | null;
+      base_course?: { id?: string } | null;
     } | null;
+    const baseCourseId = rc?.base_course?.id ?? null;
+    const totalLessons = baseCourseId ? totalLessonsByBase.get(baseCourseId) ?? 0 : 0;
+    const completedCount = completedByEnrollment.get(e.id) ?? 0;
+
     const priceCents = Number(rc?.price_cents) || 0;
     const discountPercent = rc?.discount_percent ?? null;
     const salePriceCents = getSalePriceCents(priceCents, discountPercent);
-    const { needsPayment } = await resolveEnrollmentPaymentAccess(admin, {
-      payment_id: e.payment_id,
-      regular_course: rc ?? null,
-    });
+    const isFreeCourse = salePriceCents <= 0;
+    const isPaid =
+      isFreeCourse || (e.payment_id ? paymentStatusById.get(e.payment_id) === "completed" : false);
+    const needsPayment = !isFreeCourse && !isPaid;
+
     list.push({
       id: e.id,
-      courseName: (e.regular_courses as { name?: string } | null)?.name ?? "Khóa học",
+      courseName: rc?.name ?? "Khóa học",
       enrolledAt: e.enrolled_at,
       completedCount,
       totalLessons,

@@ -66,12 +66,21 @@ export async function POST(request: NextRequest) {
     };
 
     const admin = getSupabaseAdminClient();
+    const { data: existingProfile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    const existingRole = (existingProfile as { role?: string | null } | null)?.role ?? null;
+    const roleToPersist =
+      existingRole === "owner" || existingRole === "admin" ? existingRole : "student";
+
     const { error } = await admin.from("profiles").upsert(
       {
         id: user.id,
         full_name: fullName?.trim() || null,
         email: email?.trim().toLowerCase() || null,
-        role: "student",
+        role: roleToPersist,
         address: address?.trim() || null,
         company: company?.trim() || null,
         phone: phone?.trim() || null,

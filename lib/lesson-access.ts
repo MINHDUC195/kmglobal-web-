@@ -74,27 +74,56 @@ export async function getLessonWithAccess(
     };
   }
 
-  const { data: allEnrollments } = await admin
-    .from("enrollments")
-    .select(`
-      id,
-      payment_id,
-      regular_course_id,
-      regular_course:regular_courses(base_course_id, price_cents, discount_percent)
-    `)
-    .eq("user_id", userId)
-    .eq("status", "active");
+  let enrollments: (MatchedEnrollment & {
+    regular_course?: { base_course_id?: string; price_cents?: number | null; discount_percent?: number | null } | null;
+  })[] = [];
 
-  const enrollments = (allEnrollments ?? []).filter((e) => {
-    const rc = (e as { regular_course?: { base_course_id?: string } | null }).regular_course;
-    return rc?.base_course_id === baseCourseId;
-  }) as (MatchedEnrollment & {
-    regular_course?: { price_cents?: number | null; discount_percent?: number | null } | null;
-  })[];
+  if (enrollmentIdParam) {
+    const { data: targetEnrollment } = await admin
+      .from("enrollments")
+      .select(`
+        id,
+        payment_id,
+        regular_course_id,
+        regular_course:regular_courses(base_course_id, price_cents, discount_percent)
+      `)
+      .eq("id", enrollmentIdParam)
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (targetEnrollment) {
+      const targetBaseCourseId = (
+        targetEnrollment as {
+          regular_course?: { base_course_id?: string } | null;
+        }
+      ).regular_course?.base_course_id;
+      if (targetBaseCourseId === baseCourseId) {
+        enrollments = [targetEnrollment as typeof enrollments[number]];
+      }
+    }
+  } else {
+    const { data: regularCourses } = await admin
+      .from("regular_courses")
+      .select("id")
+      .eq("base_course_id", baseCourseId);
+    const regularCourseIds = (regularCourses ?? []).map((rc) => rc.id);
+    if (regularCourseIds.length > 0) {
+      const { data: matchedEnrollments } = await admin
+        .from("enrollments")
+        .select(`
+          id,
+          payment_id,
+          regular_course_id,
+          regular_course:regular_courses(base_course_id, price_cents, discount_percent)
+        `)
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .in("regular_course_id", regularCourseIds);
+      enrollments = (matchedEnrollments ?? []) as typeof enrollments;
+    }
+  }
 
-  const enrollment = enrollmentIdParam
-    ? enrollments.find((e) => e.id === enrollmentIdParam)
-    : enrollments[0];
+  const enrollment = enrollments[0];
 
   if (!enrollment) {
     return { ok: false, status: 403, message: "Bạn chưa đăng ký khóa học này" };
