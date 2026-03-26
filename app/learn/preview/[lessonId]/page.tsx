@@ -131,12 +131,14 @@ function PreviewLessonContent() {
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSectionTransitioning, setIsSectionTransitioning] = useState(false);
   const [error, setError] = useState("");
   const lessonLoadStartedAtRef = useRef<number>(0);
   const handleNavigateStart = useCallback(() => {
+    setIsSectionTransitioning(true);
     setLoading(true);
-    setLesson(null);
     setQuestions([]);
+    setQuestionsLoading(true);
     setError("");
   }, []);
 
@@ -214,6 +216,7 @@ function PreviewLessonContent() {
       if (cachedLesson) {
         setLesson(cachedLesson);
         setLoading(false);
+        setIsSectionTransitioning(false);
       } else {
         setLoading(true);
       }
@@ -229,11 +232,13 @@ function PreviewLessonContent() {
           if (cancelled) return;
           if (lessonRes.status === 404) {
             setError("Không tìm thấy bài học");
+            setIsSectionTransitioning(false);
             return;
           }
           if (lessonRes.status === 403) {
             const errData = await lessonRes.json().catch(() => ({}));
             setError((errData as { error?: string }).error ?? "Bạn không có quyền truy cập bài học này");
+            setIsSectionTransitioning(false);
             return;
           }
           throw new Error("Lỗi tải bài học");
@@ -244,6 +249,7 @@ function PreviewLessonContent() {
         setLesson(lessonData);
         lessonPayloadCache.set(key, lessonData);
         setLoading(false);
+        setIsSectionTransitioning(false);
         if (lessonLoadStartedAtRef.current > 0 && typeof performance !== "undefined") {
           reportLearnMetric({
             name: "lesson_content_ready",
@@ -265,7 +271,10 @@ function PreviewLessonContent() {
         if (!cancelled && !(e instanceof DOMException && e.name === "AbortError")) {
           setError(e instanceof Error ? e.message : "Lỗi tải nội dung");
         }
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setIsSectionTransitioning(false);
+        }
       }
     }
 
@@ -369,8 +378,9 @@ function PreviewLessonContent() {
     lesson?.chapter &&
     lesson?.chapterLessons &&
     lesson.chapterLessons.length > 0;
+  const shouldMaskCoreSections = isSectionTransitioning && loading;
 
-  if (loading) {
+  if (loading && !lesson) {
     return (
       <div className="min-h-screen bg-white">
         <LessonPreviewTopBar />
@@ -434,123 +444,143 @@ function PreviewLessonContent() {
             </section>
 
             <div className="mt-6 space-y-6">
-              {lesson.video_url && (
-                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
-                  <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Video</h2>
-                  <BunnyVideoPlayer
-                    lessonId={lessonId}
-                    enrollmentId={enrollmentId}
-                    className="max-w-3xl rounded-xl overflow-hidden"
-                  />
-                </section>
-              )}
-
-              {lesson.document_url && (
-                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
-                  <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Tài liệu</h2>
-                  <PDFViewer
-                    lessonId={lessonId}
-                    enrollmentId={enrollmentId}
-                    className="max-w-3xl rounded-xl overflow-hidden"
-                  />
-                </section>
-              )}
-
-              {questionsLoading ? (
-                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
-                  <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">Câu hỏi kiểm tra</h2>
-                  <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
-                    Đang tải câu hỏi...
-                  </p>
-                </section>
-              ) : questions.length > 0 ? (
-                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
-                  <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">
-                    Câu hỏi kiểm tra
-                  </h2>
-                  {questions.some((q) => q.course_expired_locked) && (
-                    <p className="mb-4 rounded-lg border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Khóa học đã kết thúc, bạn không thể làm bài tập hay xem đáp án.
-                    </p>
+              {shouldMaskCoreSections ? (
+                <>
+                  {lesson.video_url && (
+                    <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                      <div className="h-52 animate-pulse rounded-xl border border-[#E4E7EB] bg-[#F8FAFC]" />
+                    </section>
                   )}
-                  <div className="space-y-6">
-                    {questions.map((q, qIdx) => {
-                      const chapterNum = (lesson.chapter?.sort_order ?? 0) + 1;
-                      const lessonNum =
-                        lesson.chapterLessons?.findIndex((l) => l.id === lessonId) ?? 0;
-                      const lessonNum1 = lessonNum + 1;
-                      const questionNum = qIdx + 1;
-                      const questionLabel =
-                        lesson.chapter && lesson.chapterLessons?.length
-                          ? `Câu ${chapterNum}.${lessonNum1}.${questionNum}`
-                          : `Câu ${questionNum}`;
-                      const quizLocked = !!q.course_expired_locked;
-                      const commonProps = {
-                        questionLabel,
-                        maxPoints: q.points ?? 1,
-                        attemptsUsed: q.attempt_count ?? 0,
-                        maxAttempts: q.max_attempts ?? 3,
-                        initialCorrect: q.has_correct ?? false,
-                        initialPointsEarned: q.points_earned ?? 0,
-                        initialStudentAnswerDisplay: q.student_answer_display,
-                        initialCorrectAnswerDisplay: q.correct_answer_display,
-                        disabled: quizLocked,
-                      };
-                      if (q.type === "single_choice") {
-                        return (
-                          <QuizSingleChoice
-                            key={q.id}
-                            questionId={q.id}
-                            content={q.content}
-                            options={q.options}
-                            onSubmit={async (id, ids) =>
-                              handleQuizSubmit(id, ids, undefined)
-                            }
-                            variant="light"
-                            {...commonProps}
-                          />
-                        );
-                      }
-                      if (q.type === "multiple_choice") {
-                        return (
-                          <QuizMultipleChoice
-                            key={q.id}
-                            questionId={q.id}
-                            content={q.content}
-                            options={q.options}
-                            onSubmit={async (id, ids) =>
-                              handleQuizSubmit(id, ids, undefined)
-                            }
-                            variant="light"
-                            {...commonProps}
-                          />
-                        );
-                      }
-                      return (
-                        <QuizFillBlank
-                          key={q.id}
-                          questionId={q.id}
-                          content={q.content}
-                          onSubmit={async (id, answer) =>
-                            handleQuizSubmit(id, undefined, answer)
-                          }
-                          variant="light"
-                          {...commonProps}
-                        />
-                      );
-                    })}
-                  </div>
-                </section>
+                  {lesson.document_url && (
+                    <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                      <div className="h-52 animate-pulse rounded-xl border border-[#E4E7EB] bg-[#F8FAFC]" />
+                    </section>
+                  )}
+                  <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                    <div className="h-24 animate-pulse rounded-xl border border-[#E4E7EB] bg-[#F8FAFC]" />
+                  </section>
+                </>
               ) : (
-                <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
-                  <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">
-                    Bài tập kiểm tra
-                  </h2>
-                  <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                    Bài học này chưa có câu hỏi trắc nghiệm. Điểm quá trình khóa học không tính từ bài
-                    tập cho bài này; bạn vẫn có thể xem video, tài liệu và tham gia hỏi đáp bên dưới.
-                  </p>
-                </section>
+                <>
+                  {lesson.video_url && (
+                    <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                      <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Video</h2>
+                      <BunnyVideoPlayer
+                        lessonId={lessonId}
+                        enrollmentId={enrollmentId}
+                        className="max-w-3xl rounded-xl overflow-hidden"
+                      />
+                    </section>
+                  )}
+
+                  {lesson.document_url && (
+                    <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                      <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Tài liệu</h2>
+                      <PDFViewer
+                        lessonId={lessonId}
+                        enrollmentId={enrollmentId}
+                        className="max-w-3xl rounded-xl overflow-hidden"
+                      />
+                    </section>
+                  )}
+
+                  {questionsLoading ? (
+                    <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                      <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">Câu hỏi kiểm tra</h2>
+                      <p className="rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm text-[#486581]">
+                        Đang tải câu hỏi...
+                      </p>
+                    </section>
+                  ) : questions.length > 0 ? (
+                    <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                      <h2 className="mb-6 text-lg font-semibold text-[#0F2D4A]">
+                        Câu hỏi kiểm tra
+                      </h2>
+                      {questions.some((q) => q.course_expired_locked) && (
+                        <p className="mb-4 rounded-lg border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                          Khóa học đã kết thúc, bạn không thể làm bài tập hay xem đáp án.
+                        </p>
+                      )}
+                      <div className="space-y-6">
+                        {questions.map((q, qIdx) => {
+                          const chapterNum = (lesson.chapter?.sort_order ?? 0) + 1;
+                          const lessonNum =
+                            lesson.chapterLessons?.findIndex((l) => l.id === lessonId) ?? 0;
+                          const lessonNum1 = lessonNum + 1;
+                          const questionNum = qIdx + 1;
+                          const questionLabel =
+                            lesson.chapter && lesson.chapterLessons?.length
+                              ? `Câu ${chapterNum}.${lessonNum1}.${questionNum}`
+                              : `Câu ${questionNum}`;
+                          const quizLocked = !!q.course_expired_locked;
+                          const commonProps = {
+                            questionLabel,
+                            maxPoints: q.points ?? 1,
+                            attemptsUsed: q.attempt_count ?? 0,
+                            maxAttempts: q.max_attempts ?? 3,
+                            initialCorrect: q.has_correct ?? false,
+                            initialPointsEarned: q.points_earned ?? 0,
+                            initialStudentAnswerDisplay: q.student_answer_display,
+                            initialCorrectAnswerDisplay: q.correct_answer_display,
+                            disabled: quizLocked,
+                          };
+                          if (q.type === "single_choice") {
+                            return (
+                              <QuizSingleChoice
+                                key={q.id}
+                                questionId={q.id}
+                                content={q.content}
+                                options={q.options}
+                                onSubmit={async (id, ids) =>
+                                  handleQuizSubmit(id, ids, undefined)
+                                }
+                                variant="light"
+                                {...commonProps}
+                              />
+                            );
+                          }
+                          if (q.type === "multiple_choice") {
+                            return (
+                              <QuizMultipleChoice
+                                key={q.id}
+                                questionId={q.id}
+                                content={q.content}
+                                options={q.options}
+                                onSubmit={async (id, ids) =>
+                                  handleQuizSubmit(id, ids, undefined)
+                                }
+                                variant="light"
+                                {...commonProps}
+                              />
+                            );
+                          }
+                          return (
+                            <QuizFillBlank
+                              key={q.id}
+                              questionId={q.id}
+                              content={q.content}
+                              onSubmit={async (id, answer) =>
+                                handleQuizSubmit(id, undefined, answer)
+                              }
+                              variant="light"
+                              {...commonProps}
+                            />
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ) : (
+                    <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
+                      <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">
+                        Bài tập kiểm tra
+                      </h2>
+                      <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                        Bài học này chưa có câu hỏi trắc nghiệm. Điểm quá trình khóa học không tính từ bài
+                        tập cho bài này; bạn vẫn có thể xem video, tài liệu và tham gia hỏi đáp bên dưới.
+                      </p>
+                    </section>
+                  )}
+                </>
               )}
 
               {enrollmentId && (
