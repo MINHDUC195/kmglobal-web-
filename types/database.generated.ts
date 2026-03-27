@@ -1355,6 +1355,163 @@ export type Database = {
           },
         ]
       }
+      whitelist_cohort_base_courses: {
+        Row: {
+          base_course_id: string
+          cohort_id: string
+        }
+        Insert: {
+          base_course_id: string
+          cohort_id: string
+        }
+        Update: {
+          base_course_id?: string
+          cohort_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whitelist_cohort_base_courses_base_course_id_fkey"
+            columns: ["base_course_id"]
+            isOneToOne: false
+            referencedRelation: "base_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whitelist_cohort_base_courses_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "whitelist_cohorts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whitelist_cohorts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          notes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whitelist_free_grants: {
+        Row: {
+          base_course_id: string
+          cohort_id: string
+          created_at: string
+          enrollment_id: string | null
+          id: string
+          payment_id: string | null
+          user_id: string
+        }
+        Insert: {
+          base_course_id: string
+          cohort_id: string
+          created_at?: string
+          enrollment_id?: string | null
+          id?: string
+          payment_id?: string | null
+          user_id: string
+        }
+        Update: {
+          base_course_id?: string
+          cohort_id?: string
+          created_at?: string
+          enrollment_id?: string | null
+          id?: string
+          payment_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whitelist_free_grants_base_course_id_fkey"
+            columns: ["base_course_id"]
+            isOneToOne: false
+            referencedRelation: "base_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whitelist_free_grants_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "whitelist_cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whitelist_free_grants_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whitelist_free_grants_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whitelist_members: {
+        Row: {
+          cohort_id: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          student_code: string | null
+          user_id: string
+        }
+        Insert: {
+          cohort_id: string
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          student_code?: string | null
+          user_id: string
+        }
+        Update: {
+          cohort_id?: string
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          student_code?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whitelist_members_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "whitelist_cohorts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

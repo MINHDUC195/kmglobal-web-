@@ -7,6 +7,8 @@ type CohortRow = {
   name: string;
   status: string;
   notes: string | null;
+  applies_from?: string | null;
+  applies_until?: string | null;
   created_at: string;
   updated_at: string;
   member_count: number;
@@ -119,6 +121,37 @@ function statusLabelVi(s: string) {
   return s;
 }
 
+function isoToDatetimeLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function datetimeLocalInputToIso(local: string): string | null {
+  const t = local.trim();
+  if (!t) return null;
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function formatAppliesRangeVi(from: string | null | undefined, until: string | null | undefined): string {
+  if (!from && !until) return "Chưa đặt khoảng thời gian áp dụng";
+  const opts: Intl.DateTimeFormatOptions = { dateStyle: "short", timeStyle: "short" };
+  try {
+    if (from && until) {
+      return `${new Date(from).toLocaleString("vi-VN", opts)} → ${new Date(until).toLocaleString("vi-VN", opts)}`;
+    }
+    if (from) return `Từ ${new Date(from).toLocaleString("vi-VN", opts)}`;
+    if (until) return `Đến ${new Date(until).toLocaleString("vi-VN", opts)}`;
+  } catch {
+    return "—";
+  }
+  return "—";
+}
+
 type SelectedBaseRow = {
   key: string;
   programId: string;
@@ -175,6 +208,8 @@ export default function WhitelistCohortsClient() {
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [createStatus, setCreateStatus] = useState("draft");
+  const [createAppliesFrom, setCreateAppliesFrom] = useState("");
+  const [createAppliesUntil, setCreateAppliesUntil] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -187,6 +222,8 @@ export default function WhitelistCohortsClient() {
   const [pickerProgramId, setPickerProgramId] = useState("");
   const [pickerChecked, setPickerChecked] = useState<Set<string>>(new Set());
   const [editStatus, setEditStatus] = useState("draft");
+  const [editAppliesFrom, setEditAppliesFrom] = useState("");
+  const [editAppliesUntil, setEditAppliesUntil] = useState("");
 
   const [importRows, setImportRows] = useState<ImportRow[]>(() => [newImportRow()]);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -236,12 +273,16 @@ export default function WhitelistCohortsClient() {
           name: name.trim(),
           notes: notes.trim() || null,
           status: createStatus,
+          applies_from: datetimeLocalInputToIso(createAppliesFrom),
+          applies_until: datetimeLocalInputToIso(createAppliesUntil),
         }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Không tạo được");
       setName("");
       setNotes("");
+      setCreateAppliesFrom("");
+      setCreateAppliesUntil("");
       showSuccess("Đã tạo đợt whitelist.");
       await load();
     } catch (e) {
@@ -268,7 +309,14 @@ export default function WhitelistCohortsClient() {
       setSelectedBaseRows(buildRowsFromBaseIds(baseIds, programs));
       setPickerProgramId(programs[0]?.id ?? "");
       setPickerChecked(new Set());
-      setEditStatus((j.cohort as { status?: string }).status ?? "draft");
+      const ch = j.cohort as {
+        status?: string;
+        applies_from?: string | null;
+        applies_until?: string | null;
+      };
+      setEditStatus(ch.status ?? "draft");
+      setEditAppliesFrom(isoToDatetimeLocalInput(ch.applies_from));
+      setEditAppliesUntil(isoToDatetimeLocalInput(ch.applies_until));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
       setDetail(null);
@@ -313,14 +361,18 @@ export default function WhitelistCohortsClient() {
         method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: editStatus }),
+        body: JSON.stringify({
+          status: editStatus,
+          applies_from: datetimeLocalInputToIso(editAppliesFrom),
+          applies_until: datetimeLocalInputToIso(editAppliesUntil),
+        }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Không cập nhật");
       if (j.cohort) {
         setDetail((d) => (d ? { ...d, cohort: j.cohort as Record<string, unknown> } : null));
       }
-      showSuccess("Đã lưu trạng thái đợt.");
+      showSuccess("Đã lưu trạng thái và khoảng thời gian áp dụng.");
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
@@ -715,6 +767,29 @@ export default function WhitelistCohortsClient() {
             onChange={(e) => setNotes(e.target.value)}
           />
         </label>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm text-gray-300">
+            Áp dụng từ
+            <input
+              type="datetime-local"
+              className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+              value={createAppliesFrom}
+              onChange={(e) => setCreateAppliesFrom(e.target.value)}
+            />
+          </label>
+          <label className="text-sm text-gray-300">
+            Đến
+            <input
+              type="datetime-local"
+              className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+              value={createAppliesUntil}
+              onChange={(e) => setCreateAppliesUntil(e.target.value)}
+            />
+          </label>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Để trống nếu chưa giới hạn đầu/cuối. Có thể chỉnh lại trong chi tiết đợt.
+        </p>
       </section>
 
       <section>
@@ -728,6 +803,9 @@ export default function WhitelistCohortsClient() {
                 <div>
                   <span className="font-medium text-white">{c.name}</span>
                   <span className="ml-2 text-xs text-gray-500">{statusLabelVi(c.status)}</span>
+                  <p className="text-xs text-[#D4AF37]/90">
+                    {formatAppliesRangeVi(c.applies_from, c.applies_until)}
+                  </p>
                   <p className="text-xs text-gray-500">
                     {c.member_count} học viên · {c.base_count} khóa cơ bản
                   </p>
@@ -778,17 +856,38 @@ export default function WhitelistCohortsClient() {
                 onClick={() => void saveCohortMeta()}
                 className="rounded-full border border-[#D4AF37]/60 px-4 py-2 text-sm text-[#D4AF37] hover:bg-[#D4AF37]/10 disabled:opacity-50"
               >
-                Lưu trạng thái
+                Lưu cài đặt đợt
               </button>
             </div>
           </div>
 
+          <div className="mt-4 w-full border-t border-white/10 pt-4">
+            <p className="text-xs font-medium text-gray-400">Khoảng thời gian áp dụng</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm text-gray-300">
+                Từ
+                <input
+                  type="datetime-local"
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+                  value={editAppliesFrom}
+                  onChange={(e) => setEditAppliesFrom(e.target.value)}
+                />
+              </label>
+              <label className="text-sm text-gray-300">
+                Đến
+                <input
+                  type="datetime-local"
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+                  value={editAppliesUntil}
+                  onChange={(e) => setEditAppliesUntil(e.target.value)}
+                />
+              </label>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Để trống = không giới hạn đầu hoặc cuối.</p>
+          </div>
+
           <div className="mt-6">
             <h3 className="text-sm font-semibold text-gray-200">Khóa cơ bản được miễn phí</h3>
-            <p className="mt-1 text-xs text-gray-500">
-              Cột 1: chọn chương trình. Cột 2: tick một hoặc nhiều khóa. Bấm OK — mỗi khóa đã tick thành một hàng bên dưới.
-              Đổi chương trình / chọn lượt khác rồi OK để thêm hàng tiếp theo.
-            </p>
             <div className="mt-3 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="block text-xs font-medium text-gray-400">Chương trình</label>
@@ -816,7 +915,7 @@ export default function WhitelistCohortsClient() {
                 </select>
               </div>
               <div className="flex min-h-[120px] flex-col">
-                <span className="text-xs font-medium text-gray-400">Khóa cơ bản (ô tick)</span>
+                <span className="text-xs font-medium text-gray-400">Khóa cơ bản</span>
                 <div className="mt-1 max-h-48 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[#0a1628]/80 p-2">
                   {pickerProgram && pickerProgram.base_courses.length > 0 ? (
                     pickerProgram.base_courses.map((b) => (

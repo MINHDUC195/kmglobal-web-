@@ -46,14 +46,28 @@ export async function resolveWhitelistFreeEnrollment(
 
   const { data: activeCohorts } = await admin
     .from("whitelist_cohorts")
-    .select("id")
+    .select("id, applies_from, applies_until")
     .in("id", cohortIds)
     .eq("status", "active");
 
-  const activeIds = new Set((activeCohorts ?? []).map((c) => (c as { id: string }).id));
+  const cohortById = new Map(
+    (activeCohorts ?? []).map((c) => {
+      const row = c as {
+        id: string;
+        applies_from: string | null;
+        applies_until: string | null;
+      };
+      return [row.id, row] as const;
+    })
+  );
+
+  const now = Date.now();
 
   for (const cid of cohortIds) {
-    if (!activeIds.has(cid)) continue;
+    const c = cohortById.get(cid);
+    if (!c) continue;
+    if (c.applies_from && new Date(c.applies_from).getTime() > now) continue;
+    if (c.applies_until && new Date(c.applies_until).getTime() < now) continue;
     const { data: link } = await admin
       .from("whitelist_cohort_base_courses")
       .select("base_course_id")

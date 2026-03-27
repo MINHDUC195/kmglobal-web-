@@ -34,7 +34,7 @@ export async function GET(
 
   const { data: cohort, error } = await admin
     .from("whitelist_cohorts")
-    .select("id, name, status, notes, created_at, updated_at, created_by")
+    .select("id, name, status, notes, applies_from, applies_until, created_at, updated_at, created_by")
     .eq("id", id)
     .maybeSingle();
 
@@ -74,7 +74,13 @@ export async function PATCH(
   if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await context.params;
-  let body: { name?: string; notes?: string | null; status?: string };
+  let body: {
+    name?: string;
+    notes?: string | null;
+    status?: string;
+    applies_from?: string | null;
+    applies_until?: string | null;
+  };
   try {
     body = await request.json();
   } catch {
@@ -87,13 +93,25 @@ export async function PATCH(
   if (body.status === "draft" || body.status === "active" || body.status === "archived") {
     updates.status = body.status;
   }
+  if (body.applies_from !== undefined) {
+    updates.applies_from =
+      body.applies_from === null || body.applies_from === ""
+        ? null
+        : String(body.applies_from).trim() || null;
+  }
+  if (body.applies_until !== undefined) {
+    updates.applies_until =
+      body.applies_until === null || body.applies_until === ""
+        ? null
+        : String(body.applies_until).trim() || null;
+  }
 
   const admin = getSupabaseAdminClient();
   const { data: row, error } = await admin
     .from("whitelist_cohorts")
     .update(updates)
     .eq("id", id)
-    .select("id, name, status, notes, created_at, updated_at")
+    .select("id, name, status, notes, applies_from, applies_until, created_at, updated_at")
     .maybeSingle();
 
   if (error || !row) {
