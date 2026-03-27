@@ -168,6 +168,25 @@ function rowKey(): string {
     : `${Date.now()}-${Math.random()}`;
 }
 
+/** Thành viên đã lưu trên server → hiển thị trong bảng (read-only + Sửa/Xóa local). */
+function membersToImportRows(
+  members: Array<{
+    id: string;
+    email: string;
+    student_code: string | null;
+    full_name: string | null;
+  }>
+): ImportRow[] {
+  return members.map((m) => ({
+    key: m.id,
+    email: (m.email ?? "").trim(),
+    password: "",
+    student_code: (m.student_code ?? "").trim(),
+    full_name: (m.full_name ?? "").trim(),
+    existingAccount: true,
+  }));
+}
+
 function buildRowsFromBaseIds(baseIds: string[], programList: ProgramRow[]): SelectedBaseRow[] {
   const rows: SelectedBaseRow[] = [];
   for (const id of baseIds) {
@@ -251,6 +270,24 @@ export default function WhitelistCohortsClient() {
     window.setTimeout(() => setSuccessMsg(null), 4500);
   }, []);
 
+  const refreshCohortMembers = useCallback(async () => {
+    if (!detailId) return;
+    try {
+      const res = await fetch(`/api/owner/whitelist-cohorts/${detailId}`, { credentials: "same-origin" });
+      const j = await res.json();
+      if (!res.ok) return;
+      const rawMembers = (j.members ?? []) as Array<{
+        id: string;
+        email: string;
+        student_code: string | null;
+        full_name: string | null;
+      }>;
+      setImportRows(membersToImportRows(rawMembers));
+    } catch {
+      /* ignore */
+    }
+  }, [detailId]);
+
   const load = useCallback(async () => {
     setErr(null);
     setLoading(true);
@@ -310,13 +347,19 @@ export default function WhitelistCohortsClient() {
   const openDetail = async (id: string) => {
     setDetailId(id);
     setImportResult(null);
-    setImportRows([]);
     setErr(null);
     try {
       const res = await fetch(`/api/owner/whitelist-cohorts/${id}`, { credentials: "same-origin" });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Không tải chi tiết");
       const baseIds = (j.base_course_ids as string[]) ?? [];
+      const rawMembers = (j.members ?? []) as Array<{
+        id: string;
+        email: string;
+        student_code: string | null;
+        full_name: string | null;
+      }>;
+      setImportRows(membersToImportRows(rawMembers));
       setDetail({
         cohort: j.cohort,
         base_course_ids: baseIds,
@@ -335,6 +378,7 @@ export default function WhitelistCohortsClient() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
       setDetail(null);
+      setImportRows([]);
     }
   };
 
@@ -422,8 +466,8 @@ export default function WhitelistCohortsClient() {
         );
       }
       setImportResult(parts.join("\n"));
-      setImportRows([]);
       showSuccess(`Import xong: ${j.ok} dòng thành công.`);
+      await refreshCohortMembers();
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
@@ -1043,6 +1087,11 @@ export default function WhitelistCohortsClient() {
 
           <div className="mt-8">
             <h3 className="text-sm font-semibold text-gray-200">Thêm học viên vào đợt</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              {importRows.length > 0
+                ? `Danh sách đã lưu: ${importRows.length} học viên (đồng bộ từ server khi mở chi tiết hoặc sau import).`
+                : "Chưa có học viên trong đợt — thêm qua hộp thoại hoặc file Excel/CSV."}
+            </p>
             {importTableBlock}
             {importResult && (
               <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-gray-300">

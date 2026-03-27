@@ -119,6 +119,20 @@ export async function GET(request: Request) {
   const payments = paymentsRaw ?? [];
   const paymentIds = payments.map((p) => p.id);
 
+  /** Giao dịch gắn suất whitelist (kể cả metadata cũ không có source=whitelist) */
+  let whitelistPaymentIds = new Set<string>();
+  if (paymentIds.length > 0) {
+    const { data: grantRows } = await admin
+      .from("whitelist_free_grants")
+      .select("payment_id")
+      .in("payment_id", paymentIds);
+    whitelistPaymentIds = new Set(
+      (grantRows ?? [])
+        .map((g) => (g as { payment_id: string | null }).payment_id)
+        .filter((id): id is string => Boolean(id))
+    );
+  }
+
   const profileMap = new Map<
     string,
     { id: string; full_name?: string | null; email?: string | null; student_code?: string | null }
@@ -231,7 +245,8 @@ export async function GET(request: Request) {
     const effectiveEnrolledAt = earliestEnrolled ?? createdAt;
 
     const payMeta = (p.metadata as { source?: string } | null) ?? {};
-    const isWhitelist = payMeta.source === "whitelist";
+    const isWhitelist =
+      payMeta.source === "whitelist" || whitelistPaymentIds.has(p.id);
 
     return {
       id: p.id,
