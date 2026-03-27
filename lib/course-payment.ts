@@ -44,6 +44,7 @@ export async function ensureCompletedFreePaymentForCourse(
   courseId: string,
   options?: {
     orgDomain?: { entitlementId: string; policyId: string };
+    whitelist?: { cohortId: string };
   }
 ): Promise<{ paymentId: string; reused: boolean }> {
   const existing = await findCompletedPaymentForCourse(admin, userId, courseId);
@@ -53,7 +54,10 @@ export async function ensureCompletedFreePaymentForCourse(
 
   const now = new Date().toISOString();
   const baseMeta: Record<string, unknown> = { course_id: courseId, source: "free_enrollment" };
-  if (options?.orgDomain) {
+  if (options?.whitelist) {
+    baseMeta.source = "whitelist";
+    baseMeta.whitelist_cohort_id = options.whitelist.cohortId;
+  } else if (options?.orgDomain) {
     baseMeta.source = "org_domain";
     baseMeta.org_domain_entitlement_id = options.orgDomain.entitlementId;
     baseMeta.org_domain_policy_id = options.orgDomain.policyId;

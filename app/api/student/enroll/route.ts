@@ -17,6 +17,7 @@ import {
   ensureOrgDomainFreePaymentAndMarkUse,
   resolveOrgDomainFreeEnrollment,
 } from "../../../../lib/org-domain";
+import { insertWhitelistFreeGrant, resolveWhitelistFreeEnrollment } from "../../../../lib/whitelist";
 
 export async function POST(request: NextRequest) {
   const rl = await checkRateLimit(
@@ -154,28 +155,38 @@ export async function POST(request: NextRequest) {
         status: "active",
         updated_at: new Date().toISOString(),
       };
+      let whitelistCohortId: string | null = null;
       if (salePriceCents <= 0) {
         const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
         updates.payment_id = freePayment.paymentId;
       } else if (baseCourseId) {
-        const org = await resolveOrgDomainFreeEnrollment(
-          admin,
-          user.id,
-          userEmail,
-          baseCourseId
-        );
-        if (org.ok) {
-          const fp = await ensureOrgDomainFreePaymentAndMarkUse(
+        const wl = await resolveWhitelistFreeEnrollment(admin, user.id, baseCourseId);
+        if (wl.ok) {
+          const fp = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId, {
+            whitelist: { cohortId: wl.cohortId },
+          });
+          updates.payment_id = fp.paymentId;
+          whitelistCohortId = wl.cohortId;
+        } else {
+          const org = await resolveOrgDomainFreeEnrollment(
             admin,
             user.id,
-            courseId,
-            org.entitlementId,
-            org.policyId,
-            org.markFirstUseAfterPayment
+            userEmail,
+            baseCourseId
           );
-          updates.payment_id = fp.paymentId;
-        } else {
-          updates.payment_id = null;
+          if (org.ok) {
+            const fp = await ensureOrgDomainFreePaymentAndMarkUse(
+              admin,
+              user.id,
+              courseId,
+              org.entitlementId,
+              org.policyId,
+              org.markFirstUseAfterPayment
+            );
+            updates.payment_id = fp.paymentId;
+          } else {
+            updates.payment_id = null;
+          }
         }
       } else {
         updates.payment_id = null;
@@ -189,6 +200,19 @@ export async function POST(request: NextRequest) {
       if (uErr) {
         console.error("Enroll reactivate error:", uErr);
         return NextResponse.json({ error: "Không thể đăng ký lại. Vui lòng thử lại." }, { status: 500 });
+      }
+
+      if (whitelistCohortId && baseCourseId && updates.payment_id) {
+        const g = await insertWhitelistFreeGrant(admin, {
+          userId: user.id,
+          baseCourseId,
+          cohortId: whitelistCohortId,
+          enrollmentId: (existingRow as { id: string }).id,
+          paymentId: updates.payment_id,
+        });
+        if (!g.ok && g.code !== "duplicate_grant") {
+          console.error("whitelist grant (reactivate):", g.code);
+        }
       }
 
       return NextResponse.json({
@@ -209,26 +233,36 @@ export async function POST(request: NextRequest) {
     const discountPercent = (course as { discount_percent?: number | null }).discount_percent ?? null;
     const salePriceCents = getSalePriceCents(priceCents, discountPercent);
     let freePaymentId: string | null = null;
+    let whitelistCohortId: string | null = null;
     if (salePriceCents <= 0) {
       const freePayment = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId);
       freePaymentId = freePayment.paymentId;
     } else if (baseCourseId) {
-      const org = await resolveOrgDomainFreeEnrollment(
-        admin,
-        user.id,
-        userEmail,
-        baseCourseId
-      );
-      if (org.ok) {
-        const fp = await ensureOrgDomainFreePaymentAndMarkUse(
+      const wl = await resolveWhitelistFreeEnrollment(admin, user.id, baseCourseId);
+      if (wl.ok) {
+        const fp = await ensureCompletedFreePaymentForCourse(admin, user.id, courseId, {
+          whitelist: { cohortId: wl.cohortId },
+        });
+        freePaymentId = fp.paymentId;
+        whitelistCohortId = wl.cohortId;
+      } else {
+        const org = await resolveOrgDomainFreeEnrollment(
           admin,
           user.id,
-          courseId,
-          org.entitlementId,
-          org.policyId,
-          org.markFirstUseAfterPayment
+          userEmail,
+          baseCourseId
         );
-        freePaymentId = fp.paymentId;
+        if (org.ok) {
+          const fp = await ensureOrgDomainFreePaymentAndMarkUse(
+            admin,
+            user.id,
+            courseId,
+            org.entitlementId,
+            org.policyId,
+            org.markFirstUseAfterPayment
+          );
+          freePaymentId = fp.paymentId;
+        }
       }
     }
 
@@ -246,6 +280,19 @@ export async function POST(request: NextRequest) {
     if (eErr || !enrollment) {
       console.error("Enroll insert error:", eErr);
       return NextResponse.json({ error: "Không thể đăng ký. Vui lòng thử lại." }, { status: 500 });
+    }
+
+    if (whitelistCohortId && baseCourseId && freePaymentId) {
+      const g = await insertWhitelistFreeGrant(admin, {
+        userId: user.id,
+        baseCourseId,
+        cohortId: whitelistCohortId,
+        enrollmentId: enrollment.id,
+        paymentId: freePaymentId,
+      });
+      if (!g.ok && g.code !== "duplicate_grant") {
+        console.error("whitelist grant (enroll):", g.code);
+      }
     }
 
     return NextResponse.json({

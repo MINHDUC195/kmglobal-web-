@@ -25,6 +25,7 @@ import {
   ensureOrgDomainFreePaymentAndMarkUse,
   resolveOrgDomainFreeEnrollment,
 } from "../../../../lib/org-domain";
+import { insertWhitelistFreeGrant, resolveWhitelistFreeEnrollment } from "../../../../lib/whitelist";
 
 /** Khi migration `checkout_course_id` chưa áp trên Supabase, PostgREST báo lỗi cột / schema cache. */
 function isMissingCheckoutCourseIdColumn(err: unknown): boolean {
@@ -197,6 +198,51 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
     if (amountCents > 0 && baseCourseId) {
+      const wl = await resolveWhitelistFreeEnrollment(admin, userId, baseCourseId);
+      if (wl.ok) {
+        const gate = await assertEnrollmentCanActivateAfterPayment(admin, userId, normalizedCourseId);
+        if (!gate.ok) {
+          return NextResponse.json({ error: gate.reason }, { status: 400 });
+        }
+        const freePayment = await ensureCompletedFreePaymentForCourse(admin, userId, normalizedCourseId, {
+          whitelist: { cohortId: wl.cohortId },
+        });
+        await admin.from("enrollments").upsert(
+          {
+            user_id: userId,
+            regular_course_id: normalizedCourseId,
+            payment_id: freePayment.paymentId,
+            status: "active",
+          },
+          { onConflict: "user_id,regular_course_id", ignoreDuplicates: false }
+        );
+        const { data: enrollment } = await admin
+          .from("enrollments")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("regular_course_id", normalizedCourseId)
+          .single();
+        if (enrollment?.id) {
+          const g = await insertWhitelistFreeGrant(admin, {
+            userId,
+            baseCourseId,
+            cohortId: wl.cohortId,
+            enrollmentId: enrollment.id,
+            paymentId: freePayment.paymentId,
+          });
+          if (!g.ok && g.code !== "duplicate_grant") {
+            console.error("checkout whitelist grant:", g.code);
+          }
+        }
+        const redirectUrl = enrollment?.id ? `${baseUrl}/learn/${enrollment.id}` : `${baseUrl}/student`;
+        return NextResponse.json({
+          redirectUrl,
+          paymentId: freePayment.paymentId,
+          free: true,
+          whitelist: true,
+        });
+      }
+
       const org = await resolveOrgDomainFreeEnrollment(
         admin,
         userId,

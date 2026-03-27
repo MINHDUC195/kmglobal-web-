@@ -51,6 +51,12 @@ const modules = [
     href: "/owner/org-domain",
     icon: "🏢",
   },
+  {
+    title: "Whitelist đợt đào tạo",
+    desc: "Import danh sách, gắn base — một suất miễn phí / học viên / base",
+    href: "/owner/whitelist",
+    icon: "✅",
+  },
 ];
 
 export default function OwnerDashboardPage() {

@@ -789,6 +789,119 @@ export type Database = {
           },
         ]
       }
+      org_domain_entitlements: {
+        Row: {
+          created_at: string
+          first_used_at: string | null
+          granted_at: string
+          id: string
+          policy_id: string
+          revoked_at: string | null
+          revoked_by: string | null
+          revoked_reason: string | null
+          unused_expiry_deadline: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          first_used_at?: string | null
+          granted_at?: string
+          id?: string
+          policy_id: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          unused_expiry_deadline: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          first_used_at?: string | null
+          granted_at?: string
+          id?: string
+          policy_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          unused_expiry_deadline?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_domain_entitlements_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "org_domain_policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_domain_policies: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email_domain: string
+          id: string
+          max_users: number
+          notes: string | null
+          status: string
+          unused_expiry_years: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email_domain: string
+          id?: string
+          max_users: number
+          notes?: string | null
+          status?: string
+          unused_expiry_years?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email_domain?: string
+          id?: string
+          max_users?: number
+          notes?: string | null
+          status?: string
+          unused_expiry_years?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      org_domain_policy_base_courses: {
+        Row: {
+          base_course_id: string
+          policy_id: string
+        }
+        Insert: {
+          base_course_id: string
+          policy_id: string
+        }
+        Update: {
+          base_course_id?: string
+          policy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_domain_policy_base_courses_base_course_id_fkey"
+            columns: ["base_course_id"]
+            isOneToOne: false
+            referencedRelation: "base_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_domain_policy_base_courses_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "org_domain_policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount_cents: number
@@ -835,7 +948,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payments_checkout_course_id_fkey"
+            columns: ["checkout_course_id"]
+            isOneToOne: false
+            referencedRelation: "regular_courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1245,6 +1366,7 @@ export type Database = {
       }
       is_owner_or_admin: { Args: never; Returns: boolean }
       next_student_code: { Args: never; Returns: string }
+      normalize_phone_e164: { Args: { p_input: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
