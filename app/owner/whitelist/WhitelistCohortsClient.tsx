@@ -26,6 +26,8 @@ type ImportRow = {
   password: string;
   student_code: string;
   full_name: string;
+  /** Email khớp profile — không bắt buộc mật khẩu, tự điền tên/mã */
+  existingAccount?: boolean;
 };
 
 function newImportRow(): ImportRow {
@@ -35,6 +37,7 @@ function newImportRow(): ImportRow {
     password: "",
     student_code: "",
     full_name: "",
+    existingAccount: false,
   };
 }
 
@@ -178,7 +181,6 @@ export default function WhitelistCohortsClient() {
   const [detail, setDetail] = useState<{
     cohort: Record<string, unknown>;
     base_course_ids: string[];
-    members: { id: string; email: string; student_code: string | null; full_name: string | null }[];
   } | null>(null);
   /** Các khóa cơ bản đã chọn (mỗi khóa một hàng). */
   const [selectedBaseRows, setSelectedBaseRows] = useState<SelectedBaseRow[]>([]);
@@ -262,7 +264,6 @@ export default function WhitelistCohortsClient() {
       setDetail({
         cohort: j.cohort,
         base_course_ids: baseIds,
-        members: j.members ?? [],
       });
       setSelectedBaseRows(buildRowsFromBaseIds(baseIds, programs));
       setPickerProgramId(programs[0]?.id ?? "");
@@ -274,8 +275,9 @@ export default function WhitelistCohortsClient() {
     }
   };
 
-  const saveBases = async () => {
-    if (!detailId) return;
+  /** Lưu danh sách base — không mở lại chi tiết. Trả về true nếu thành công (để cập nhật state local). */
+  const persistBases = async (baseIds: string[]): Promise<boolean> => {
+    if (!detailId) return false;
     setSaving(true);
     setErr(null);
     try {
@@ -283,17 +285,20 @@ export default function WhitelistCohortsClient() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          base_course_ids: [...new Set(selectedBaseRows.map((r) => r.baseId))],
-        }),
+        body: JSON.stringify({ base_course_ids: [...new Set(baseIds)] }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Không lưu");
-      showSuccess("Đã lưu khóa cơ bản.");
-      await openDetail(detailId);
+      if (!res.ok) {
+        setErr(typeof j.error === "string" ? j.error : "Không lưu được");
+        return false;
+      }
+      setDetail((d) => (d ? { ...d, base_course_ids: [...new Set(baseIds)] } : null));
+      showSuccess("Đã cập nhật khóa cơ bản.");
       await load();
+      return true;
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -312,8 +317,10 @@ export default function WhitelistCohortsClient() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Không cập nhật");
+      if (j.cohort) {
+        setDetail((d) => (d ? { ...d, cohort: j.cohort as Record<string, unknown> } : null));
+      }
       showSuccess("Đã lưu trạng thái đợt.");
-      await openDetail(detailId);
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
@@ -348,7 +355,6 @@ export default function WhitelistCohortsClient() {
       setImportResult(parts.join("\n"));
       setImportRows([newImportRow()]);
       showSuccess(`Import xong: ${j.ok} dòng thành công.`);
-      await openDetail(detailId);
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
@@ -404,10 +410,54 @@ export default function WhitelistCohortsClient() {
       const kept = prev.filter((r) => r.email.trim());
       const next = parsed.map((p) => ({
         ...p,
+        existingAccount: false,
         key: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
       }));
       return [...kept, ...next, newImportRow()];
     });
+  };
+
+  const lookupEmailForRow = async (rowIndex: number, emailRaw: string) => {
+    const e = emailRaw.trim().toLowerCase();
+    if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+      setImportRows((prev) =>
+        prev.map((r, i) => (i === rowIndex ? { ...r, existingAccount: false } : r))
+      );
+      return;
+    }
+    try {
+      const res = await fetch(`/api/owner/profile-by-email?email=${encodeURIComponent(e)}`, {
+        credentials: "same-origin",
+      });
+      const j = (await res.json()) as {
+        found?: boolean;
+        full_name?: string;
+        student_code?: string;
+      };
+      if (res.ok && j.found) {
+        setImportRows((prev) =>
+          prev.map((r, i) =>
+            i === rowIndex
+              ? {
+                  ...r,
+                  existingAccount: true,
+                  password: "",
+                  full_name: (j.full_name && j.full_name.trim()) || r.full_name,
+                  student_code: (j.student_code && j.student_code.trim()) || r.student_code,
+                }
+              : r
+          )
+        );
+      } else {
+        setImportRows((prev) =>
+          prev.map((r, i) => (i === rowIndex ? { ...r, existingAccount: false } : r))
+        );
+      }
+    } catch {
+      setImportRows((prev) =>
+        prev.map((r, i) => (i === rowIndex ? { ...r, existingAccount: false } : r))
+      );
+    }
   };
 
   const pickerProgram = useMemo(
@@ -415,7 +465,7 @@ export default function WhitelistCohortsClient() {
     [programs, pickerProgramId]
   );
 
-  const addPickerBasesToList = () => {
+  const addPickerBasesToList = async () => {
     const prog = pickerProgram;
     if (!prog) {
       setErr("Chưa có chương trình để chọn.");
@@ -427,29 +477,41 @@ export default function WhitelistCohortsClient() {
       return;
     }
     setErr(null);
-    setSelectedBaseRows((prev) => {
-      const have = new Set(prev.map((r) => r.baseId));
-      const next = [...prev];
-      for (const baseId of ids) {
-        if (have.has(baseId)) continue;
-        const b = prog.base_courses.find((x) => x.id === baseId);
-        if (!b) continue;
-        next.push({
-          key: rowKey(),
-          programId: prog.id,
-          programName: prog.name,
-          baseId: b.id,
-          baseLabel: `${b.name} (${b.code})`,
-        });
-        have.add(baseId);
-      }
-      return next;
-    });
-    setPickerChecked(new Set());
+
+    const have = new Set(selectedBaseRows.map((r) => r.baseId));
+    const next = [...selectedBaseRows];
+    for (const baseId of ids) {
+      if (have.has(baseId)) continue;
+      const b = prog.base_courses.find((x) => x.id === baseId);
+      if (!b) continue;
+      next.push({
+        key: rowKey(),
+        programId: prog.id,
+        programName: prog.name,
+        baseId: b.id,
+        baseLabel: `${b.name} (${b.code})`,
+      });
+      have.add(baseId);
+    }
+
+    const baseIds = [...new Set(next.map((r) => r.baseId))];
+    const ok = await persistBases(baseIds);
+    if (ok) {
+      setSelectedBaseRows(next);
+      setPickerChecked(new Set());
+    }
   };
 
-  const removeSelectedBaseRow = (key: string) => {
-    setSelectedBaseRows((prev) => prev.filter((r) => r.key !== key));
+  const removeSelectedBaseRow = async (key: string) => {
+    if (!window.confirm("Xóa khóa này khỏi danh sách đợt whitelist?")) {
+      return;
+    }
+    const next = selectedBaseRows.filter((r) => r.key !== key);
+    const baseIds = [...new Set(next.map((r) => r.baseId))];
+    const ok = await persistBases(baseIds);
+    if (ok) {
+      setSelectedBaseRows(next);
+    }
   };
 
   const importTable = (opts: { inModal: boolean }) => (
@@ -459,7 +521,7 @@ export default function WhitelistCohortsClient() {
           <thead>
             <tr className="border-b border-white/10 bg-black/20 text-xs text-gray-400">
               <th className="px-2 py-2 font-medium">Email *</th>
-              <th className="px-2 py-2 font-medium">Mật khẩu (tài khoản mới)</th>
+              <th className="px-2 py-2 font-medium">Mật khẩu (chỉ khi tạo tài khoản mới)</th>
               <th className="px-2 py-2 font-medium">Mã HV</th>
               <th className="px-2 py-2 font-medium">Họ tên</th>
               <th className="w-10 px-1 py-2" aria-hidden />
@@ -475,27 +537,36 @@ export default function WhitelistCohortsClient() {
                     onChange={(e) => {
                       const v = e.target.value;
                       setImportRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, email: v } : r))
+                        prev.map((r, i) =>
+                          i === idx ? { ...r, email: v, existingAccount: false } : r
+                        )
                       );
                     }}
+                    onBlur={(e) => void lookupEmailForRow(idx, e.target.value)}
                     placeholder="a@domain.com"
                     autoComplete="off"
                   />
                 </td>
                 <td className="px-1 py-1 align-top">
-                  <input
-                    type="password"
-                    className="w-full min-w-[140px] rounded border border-white/15 bg-[#0a1628] px-2 py-1.5 text-white"
-                    value={row.password}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setImportRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, password: v } : r))
-                      );
-                    }}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
+                  {row.existingAccount ? (
+                    <div className="min-w-[140px] rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-xs text-emerald-200/90">
+                      Không cần — đã có tài khoản
+                    </div>
+                  ) : (
+                    <input
+                      type="password"
+                      className="w-full min-w-[140px] rounded border border-white/15 bg-[#0a1628] px-2 py-1.5 text-white"
+                      value={row.password}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setImportRows((prev) =>
+                          prev.map((r, i) => (i === idx ? { ...r, password: v } : r))
+                        );
+                      }}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                    />
+                  )}
                 </td>
                 <td className="px-1 py-1 align-top">
                   <input
@@ -579,7 +650,7 @@ export default function WhitelistCohortsClient() {
         </label>
       </div>
       <p className="text-xs text-gray-500">
-        Tài khoản mới: mật khẩu tối thiểu 10 ký tự, có chữ hoa, thường và số. Email đã tồn tại: có thể để trống mật khẩu.
+        Nhập email rồi rời khỏi ô: nếu đã có trong hệ thống, hệ thống tự điền họ tên và mã HV — không cần mật khẩu. Tài khoản mới: mật khẩu tối thiểu 10 ký tự, có chữ hoa, thường và số.
       </p>
     </div>
   );
@@ -781,7 +852,7 @@ export default function WhitelistCohortsClient() {
               <button
                 type="button"
                 disabled={saving || !pickerProgram || programs.length === 0}
-                onClick={() => addPickerBasesToList()}
+                onClick={() => void addPickerBasesToList()}
                 className="rounded-full bg-[#D4AF37]/20 px-6 py-2 text-sm font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/25 disabled:opacity-50"
               >
                 OK
@@ -818,7 +889,7 @@ export default function WhitelistCohortsClient() {
                             <button
                               type="button"
                               className="text-xs text-red-300 hover:underline"
-                              onClick={() => removeSelectedBaseRow(r.key)}
+                              onClick={() => void removeSelectedBaseRow(r.key)}
                             >
                               Xóa
                             </button>
@@ -830,15 +901,9 @@ export default function WhitelistCohortsClient() {
                 </table>
               </div>
             </div>
-
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void saveBases()}
-              className="mt-4 rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-semibold text-[#0a1628] disabled:opacity-50"
-            >
-              Lưu khóa cơ bản
-            </button>
+            <p className="mt-2 text-xs text-gray-500">
+              Danh sách khóa được lưu tự động khi bấm OK hoặc khi xóa một hàng.
+            </p>
           </div>
 
           <div className="mt-8">
@@ -857,30 +922,6 @@ export default function WhitelistCohortsClient() {
                 {importResult}
               </pre>
             )}
-          </div>
-
-          <div className="mt-8">
-            <h3 className="text-sm font-semibold text-gray-200">Thành viên ({detail.members.length})</h3>
-            <div className="mt-2 max-h-56 overflow-y-auto text-sm">
-              <table className="w-full border-collapse text-left text-gray-300">
-                <thead>
-                  <tr className="border-b border-white/10 text-xs text-gray-500">
-                    <th className="py-2 pr-2">Email</th>
-                    <th className="py-2 pr-2">Mã HV</th>
-                    <th className="py-2">Họ tên</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.members.map((m) => (
-                    <tr key={m.id} className="border-b border-white/5">
-                      <td className="py-1.5 pr-2">{m.email}</td>
-                      <td className="py-1.5 pr-2">{m.student_code ?? "—"}</td>
-                      <td className="py-1.5">{m.full_name ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
 
           <button
