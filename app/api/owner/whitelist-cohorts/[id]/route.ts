@@ -110,3 +110,55 @@ export async function PATCH(
 
   return NextResponse.json({ cohort: row });
 }
+
+/**
+ * DELETE /api/owner/whitelist-cohorts/[id]
+ * Chỉ xóa được khi chưa có bản ghi whitelist_free_grants gắn đợt (đã có suất dùng).
+ */
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  if (!validateOrigin(request)) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
+  const auth = await ensureOwner();
+  if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await context.params;
+  const admin = getSupabaseAdminClient();
+
+  const { count: grantCount, error: grantErr } = await admin
+    .from("whitelist_free_grants")
+    .select("id", { count: "exact", head: true })
+    .eq("cohort_id", id);
+
+  if (grantErr) {
+    console.error("whitelist delete grant count:", grantErr);
+    return NextResponse.json({ error: "Không kiểm tra được dữ liệu" }, { status: 500 });
+  }
+  if ((grantCount ?? 0) > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Không xóa được đợt đã có học viên sử dụng suất miễn phí. Chuyển trạng thái sang Lưu trữ thay vì xóa.",
+      },
+      { status: 409 }
+    );
+  }
+
+  const { error: delErr } = await admin.from("whitelist_cohorts").delete().eq("id", id);
+  if (delErr) {
+    console.error("whitelist_cohorts delete:", delErr);
+    return NextResponse.json({ error: "Không xóa được đợt" }, { status: 500 });
+  }
+
+  await logAuditEvent({
+    actorId: auth.userId,
+    action: "owner.whitelist_cohort.delete",
+    resourceType: "whitelist_cohort",
+    resourceId: id,
+  });
+
+  return NextResponse.json({ ok: true });
+}

@@ -115,16 +115,36 @@ export function validateOrigin(request: NextRequest): boolean {
   }
 
   if (origin) {
-    return originMatchesAllowed(origin, allowed);
+    if (originMatchesAllowed(origin, allowed)) {
+      return true;
+    }
+    const secFetchSite = request.headers.get("sec-fetch-site");
+    if (secFetchSite === "same-origin") {
+      return true;
+    }
+    return false;
   }
 
   if (referer) {
     try {
       const refererOrigin = new URL(referer).origin;
-      return originMatchesAllowed(refererOrigin, allowed);
+      if (originMatchesAllowed(refererOrigin, allowed)) {
+        return true;
+      }
     } catch {
       return false;
     }
+    const secFetchSite = request.headers.get("sec-fetch-site");
+    if (secFetchSite === "same-origin") {
+      return true;
+    }
+    return false;
+  }
+
+  /** Không có Origin/Referer — thử tín hiệu từ trình duyệt. */
+  const secFetchSiteNoOrigin = request.headers.get("sec-fetch-site");
+  if (secFetchSiteNoOrigin === "same-origin") {
+    return true;
   }
 
   // Một số trình duyệt / mạng không gửi Origin (và đôi khi Referer) cho POST cùng origin.
