@@ -9,16 +9,27 @@ import { getSupabaseBrowserClient } from "../lib/supabase-browser";
 type DashboardNavProps = {
   /** Fallback khi chưa load xong profile */
   greeting?: string;
+  /** Tên từ server (layout) — tránh fetch thêm profile trên client */
+  initialDisplayName?: string | null;
   /** Link "Khám phá khóa học" - chỉ hiện cho student */
   showExploreCourses?: boolean;
 };
 
-export default function DashboardNav({ greeting = "bạn", showExploreCourses = false }: DashboardNavProps) {
+export default function DashboardNav({
+  greeting = "bạn",
+  initialDisplayName,
+  showExploreCourses = false,
+}: DashboardNavProps) {
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
-  const [displayName, setDisplayName] = useState(greeting);
+  const [displayName, setDisplayName] = useState(() =>
+    initialDisplayName != null
+      ? (String(initialDisplayName).trim() || greeting)
+      : greeting
+  );
 
   useEffect(() => {
+    if (initialDisplayName != null) return;
     async function loadProfile() {
       const { data } = await supabase.auth.getUser();
       if (!data.user) return;
@@ -31,7 +42,7 @@ export default function DashboardNav({ greeting = "bạn", showExploreCourses = 
       if (name) setDisplayName(name);
     }
     void loadProfile();
-  }, [supabase]);
+  }, [supabase, initialDisplayName]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();

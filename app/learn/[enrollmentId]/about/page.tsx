@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { getActiveLearnEnrollmentForUser } from "../../../../lib/get-active-learn-enrollment";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import CancelEnrollmentButton from "../../../../components/CancelEnrollmentButton";
 
@@ -17,24 +18,10 @@ export default async function LearnAboutPage({ params }: AboutPageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) notFound();
 
+  const enrollment = await getActiveLearnEnrollmentForUser(enrollmentId, user.id);
+  if (!enrollment) notFound();
+
   const admin = getSupabaseAdminClient();
-  const { data: enrollment, error: eErr } = await admin
-    .from("enrollments")
-    .select(`
-      id,
-      regular_course_id,
-      regular_course:regular_courses(
-        name,
-        base_course:base_courses(id, name, code, summary, objectives, difficulty_level, prerequisite)
-      )
-    `)
-    .eq("id", enrollmentId)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .single();
-
-  if (eErr || !enrollment) notFound();
-
   const { data: certificateRow } = await admin
     .from("certificates")
     .select("id")

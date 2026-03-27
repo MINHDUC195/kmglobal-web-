@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { getActiveLearnEnrollmentForUser } from "../../../../lib/get-active-learn-enrollment";
 import { getSupabaseAdminClient } from "../../../../lib/supabase-admin";
 import { resolveEnrollmentPaymentAccess } from "../../../../lib/enrollment-payment-status";
 
@@ -72,31 +73,18 @@ export default async function LearnProgressPage({ params }: ProgressPageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) notFound();
 
+  const enrollment = await getActiveLearnEnrollmentForUser(enrollmentId, user.id);
+  if (!enrollment) notFound();
+
   const admin = getSupabaseAdminClient();
-  const { data: enrollment, error: eErr } = await admin
-    .from("enrollments")
-    .select(`
-      id,
-      payment_id,
-      regular_course_id,
-      regular_course:regular_courses(
-        name,
-        price_cents,
-        discount_percent,
-        base_course:base_courses(id, final_exam_weight_percent)
-      )
-    `)
-    .eq("id", enrollmentId)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .single();
-
-  if (eErr || !enrollment) notFound();
-
   const rcProgress = enrollment.regular_course as {
     price_cents?: number | null;
     discount_percent?: number | null;
-    base_course?: { id?: string; final_exam_weight_percent?: number };
+    base_course?: {
+      id?: string;
+      certificate_pass_percent?: number | null;
+      final_exam_weight_percent?: number | null;
+    };
   } | null;
   const { needsPayment } = await resolveEnrollmentPaymentAccess(admin, {
     payment_id: enrollment.payment_id,
@@ -108,19 +96,10 @@ export default async function LearnProgressPage({ params }: ProgressPageProps) {
   const baseCourseId = baseCourse?.id;
   if (!baseCourseId) notFound();
 
-  let certificatePassPercent = 70;
-  try {
-    const { data: bc } = await admin
-      .from("base_courses")
-      .select("certificate_pass_percent")
-      .eq("id", baseCourseId)
-      .single();
-    if (bc?.certificate_pass_percent != null) {
-      certificatePassPercent = Number(bc.certificate_pass_percent) || 70;
-    }
-  } catch {
-    // Column may not exist if migration not run
-  }
+  const rawCert = baseCourse?.certificate_pass_percent;
+  const certificatePassPercent = Math.round(
+    rawCert != null && !Number.isNaN(Number(rawCert)) ? Number(rawCert) : 70
+  );
 
   const lessonWeight = 100 - (Number(baseCourse?.final_exam_weight_percent) ?? 30);
   const examWeight = Number(baseCourse?.final_exam_weight_percent) ?? 30;

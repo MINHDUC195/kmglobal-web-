@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
+import { getActiveLearnEnrollmentForUser } from "../../../lib/get-active-learn-enrollment";
 import { getSupabaseAdminClient } from "../../../lib/supabase-admin";
 import { isCourseExpiredUncompleted } from "../../../lib/course-expired-uncompleted";
 import { resolveEnrollmentPaymentAccess } from "../../../lib/enrollment-payment-status";
@@ -20,27 +21,10 @@ export default async function LearnPage({ params }: LearnPageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) notFound();
 
-  const admin = getSupabaseAdminClient();
-  const { data: enrollment, error: eErr } = await admin
-    .from("enrollments")
-    .select(`
-      id,
-      payment_id,
-      regular_course_id,
-      regular_course:regular_courses(
-        id,
-        name,
-        price_cents,
-        discount_percent,
-        base_course:base_courses(id, certificate_pass_percent)
-      )
-    `)
-    .eq("id", enrollmentId)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .single();
+  const enrollment = await getActiveLearnEnrollmentForUser(enrollmentId, user.id);
+  if (!enrollment) notFound();
 
-  if (eErr || !enrollment) notFound();
+  const admin = getSupabaseAdminClient();
 
   const rc = enrollment.regular_course as {
     price_cents?: number | null;

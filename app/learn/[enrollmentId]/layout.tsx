@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { guardStudentAccountOrRedirect } from "../../../lib/student-account-guard";
 import { daysUntil } from "../../../lib/course-lifecycle";
-import { getSupabaseAdminClient } from "../../../lib/supabase-admin";
+import { getActiveLearnEnrollmentForUser } from "../../../lib/get-active-learn-enrollment";
 import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
 import LearnNavTabs from "./LearnNavTabs";
 
@@ -23,8 +23,10 @@ export default async function LearnLayout({ params, children }: LearnLayoutProps
 
   await guardStudentAccountOrRedirect(user.id);
 
-  const admin = getSupabaseAdminClient();
-  const { data: profileRow } = await admin
+  const enrollment = await getActiveLearnEnrollmentForUser(enrollmentId, user.id);
+  if (!enrollment) notFound();
+
+  const { data: profileRow } = await supabase
     .from("profiles")
     .select("full_name")
     .eq("id", user.id)
@@ -36,22 +38,8 @@ export default async function LearnLayout({ params, children }: LearnLayoutProps
     (user.email ? user.email.split("@")[0] : "") ||
     "Học viên";
 
-  const { data: enrollment, error: eErr } = await admin
-    .from("enrollments")
-    .select(`
-      id,
-      regular_course_id,
-      regular_course:regular_courses(name, registration_close_at, course_end_at, base_course:base_courses(id))
-    `)
-    .eq("id", enrollmentId)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .single();
-
-  if (eErr || !enrollment) notFound();
-
-  const courseName = (enrollment.regular_course as { name?: string } | null)?.name ?? "Khóa học";
-  const rc = enrollment.regular_course as { registration_close_at?: string | null; course_end_at?: string | null } | null;
+  const courseName = enrollment.regular_course?.name ?? "Khóa học";
+  const rc = enrollment.regular_course;
   const daysUntilCourseEnd = daysUntil(rc?.course_end_at ?? null);
 
   return (

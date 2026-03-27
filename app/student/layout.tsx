@@ -20,9 +20,19 @@ export default async function StudentLayout({
 
   await guardStudentAccountOrRedirect(user.id);
 
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+  const navDisplayName =
+    (profileRow as { full_name?: string | null } | null)?.full_name?.trim() ||
+    (user.email ? user.email.split("@")[0] : "") ||
+    "Học viên";
+
   return (
     <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Học viên" showExploreCourses />
+      <DashboardNav greeting="Học viên" showExploreCourses initialDisplayName={navDisplayName} />
       <StudentNav />
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-8 sm:px-6">
         {children}

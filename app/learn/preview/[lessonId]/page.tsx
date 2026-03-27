@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import BunnyVideoPlayer from "../../../../components/BunnyVideoPlayer";
 import Footer from "../../../../components/Footer";
 import LessonBreadcrumbs from "../../../../components/LessonBreadcrumbs";
 import LessonPrevNext from "../../../../components/LessonPrevNext";
 import LessonPreviewSidebar from "../../../../components/LessonPreviewSidebar";
 import LessonPreviewTopBar from "../../../../components/LessonPreviewTopBar";
-import PDFViewer from "../../../../components/PDFViewer";
-import LessonQASection from "../../../../components/LessonQASection";
-import QuizFillBlank from "../../../../components/QuizFillBlank";
-import QuizMultipleChoice from "../../../../components/QuizMultipleChoice";
-import QuizSingleChoice from "../../../../components/QuizSingleChoice";
+import {
+  LazyBunnyVideoPlayer,
+  LazyLessonQASection,
+  LazyPDFViewer,
+  LazyQuizFillBlank,
+  LazyQuizMultipleChoice,
+  LazyQuizSingleChoice,
+} from "./learn-preview-lazy";
 
 type ChapterLesson = { id: string; name: string; sort_order: number };
 type Lesson = {
@@ -465,7 +467,7 @@ function PreviewLessonContent() {
                   {lesson.video_url && (
                     <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                       <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Video</h2>
-                      <BunnyVideoPlayer
+                      <LazyBunnyVideoPlayer
                         lessonId={lessonId}
                         enrollmentId={enrollmentId}
                         className="max-w-3xl rounded-xl overflow-hidden"
@@ -476,7 +478,7 @@ function PreviewLessonContent() {
                   {lesson.document_url && (
                     <section className="rounded-2xl border border-[#D9E2EC] bg-white p-5 shadow-[0_8px_20px_rgba(16,42,67,0.06)] sm:p-6">
                       <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Tài liệu</h2>
-                      <PDFViewer
+                      <LazyPDFViewer
                         lessonId={lessonId}
                         enrollmentId={enrollmentId}
                         className="max-w-3xl rounded-xl overflow-hidden"
@@ -526,7 +528,7 @@ function PreviewLessonContent() {
                           };
                           if (q.type === "single_choice") {
                             return (
-                              <QuizSingleChoice
+                              <LazyQuizSingleChoice
                                 key={q.id}
                                 questionId={q.id}
                                 content={q.content}
@@ -541,7 +543,7 @@ function PreviewLessonContent() {
                           }
                           if (q.type === "multiple_choice") {
                             return (
-                              <QuizMultipleChoice
+                              <LazyQuizMultipleChoice
                                 key={q.id}
                                 questionId={q.id}
                                 content={q.content}
@@ -555,7 +557,7 @@ function PreviewLessonContent() {
                             );
                           }
                           return (
-                            <QuizFillBlank
+                            <LazyQuizFillBlank
                               key={q.id}
                               questionId={q.id}
                               content={q.content}
@@ -596,7 +598,7 @@ function PreviewLessonContent() {
                     </button>
                   </div>
                   {showDiscussion ? (
-                    <LessonQASection
+                    <LazyLessonQASection
                       lessonId={lessonId}
                       enrollmentId={enrollmentId}
                       lessonName={lesson.name}
@@ -657,7 +659,7 @@ function PreviewLessonContent() {
           {lesson.video_url && (
             <section>
               <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Video</h2>
-              <BunnyVideoPlayer
+              <LazyBunnyVideoPlayer
                 lessonId={lessonId}
                 enrollmentId={enrollmentId}
                 className="max-w-3xl rounded-xl overflow-hidden"
@@ -668,7 +670,7 @@ function PreviewLessonContent() {
           {lesson.document_url && (
             <section>
               <h2 className="mb-4 text-lg font-semibold text-[#0F2D4A]">Tài liệu</h2>
-              <PDFViewer
+              <LazyPDFViewer
                 lessonId={lessonId}
                 enrollmentId={enrollmentId}
                 className="max-w-3xl rounded-xl overflow-hidden"
@@ -720,7 +722,7 @@ function PreviewLessonContent() {
                   };
                   if (q.type === "single_choice") {
                     return (
-                      <QuizSingleChoice
+                      <LazyQuizSingleChoice
                         key={q.id}
                         questionId={q.id}
                         content={q.content}
@@ -735,7 +737,7 @@ function PreviewLessonContent() {
                   }
                   if (q.type === "multiple_choice") {
                     return (
-                      <QuizMultipleChoice
+                      <LazyQuizMultipleChoice
                         key={q.id}
                         questionId={q.id}
                         content={q.content}
@@ -749,7 +751,7 @@ function PreviewLessonContent() {
                     );
                   }
                   return (
-                    <QuizFillBlank
+                    <LazyQuizFillBlank
                       key={q.id}
                       questionId={q.id}
                       content={q.content}
@@ -786,7 +788,7 @@ function PreviewLessonContent() {
                 </button>
               </div>
               {showDiscussion ? (
-                <LessonQASection
+                <LazyLessonQASection
                   lessonId={lessonId}
                   enrollmentId={enrollmentId}
                   lessonName={lesson.name}
