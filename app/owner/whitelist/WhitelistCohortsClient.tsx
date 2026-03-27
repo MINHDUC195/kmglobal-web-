@@ -116,6 +116,51 @@ function statusLabelVi(s: string) {
   return s;
 }
 
+type SelectedBaseRow = {
+  key: string;
+  programId: string;
+  programName: string;
+  baseId: string;
+  baseLabel: string;
+};
+
+function rowKey(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
+}
+
+function buildRowsFromBaseIds(baseIds: string[], programList: ProgramRow[]): SelectedBaseRow[] {
+  const rows: SelectedBaseRow[] = [];
+  for (const id of baseIds) {
+    let found = false;
+    for (const prog of programList) {
+      const b = prog.base_courses.find((x) => x.id === id);
+      if (b) {
+        rows.push({
+          key: rowKey(),
+          programId: prog.id,
+          programName: prog.name,
+          baseId: b.id,
+          baseLabel: `${b.name} (${b.code})`,
+        });
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      rows.push({
+        key: rowKey(),
+        programId: "",
+        programName: "—",
+        baseId: id,
+        baseLabel: `Khóa không còn trong danh mục (${id.slice(0, 8)}…)`,
+      });
+    }
+  }
+  return rows;
+}
+
 export default function WhitelistCohortsClient() {
   const modalTitleId = useId();
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
@@ -135,7 +180,10 @@ export default function WhitelistCohortsClient() {
     base_course_ids: string[];
     members: { id: string; email: string; student_code: string | null; full_name: string | null }[];
   } | null>(null);
-  const [editBaseIds, setEditBaseIds] = useState<Set<string>>(new Set());
+  /** Các khóa cơ bản đã chọn (mỗi khóa một hàng). */
+  const [selectedBaseRows, setSelectedBaseRows] = useState<SelectedBaseRow[]>([]);
+  const [pickerProgramId, setPickerProgramId] = useState("");
+  const [pickerChecked, setPickerChecked] = useState<Set<string>>(new Set());
   const [editStatus, setEditStatus] = useState("draft");
 
   const [importRows, setImportRows] = useState<ImportRow[]>(() => [newImportRow()]);
@@ -210,12 +258,15 @@ export default function WhitelistCohortsClient() {
       const res = await fetch(`/api/owner/whitelist-cohorts/${id}`, { credentials: "same-origin" });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Không tải chi tiết");
+      const baseIds = (j.base_course_ids as string[]) ?? [];
       setDetail({
         cohort: j.cohort,
-        base_course_ids: j.base_course_ids ?? [],
+        base_course_ids: baseIds,
         members: j.members ?? [],
       });
-      setEditBaseIds(new Set((j.base_course_ids as string[]) ?? []));
+      setSelectedBaseRows(buildRowsFromBaseIds(baseIds, programs));
+      setPickerProgramId(programs[0]?.id ?? "");
+      setPickerChecked(new Set());
       setEditStatus((j.cohort as { status?: string }).status ?? "draft");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
@@ -232,7 +283,9 @@ export default function WhitelistCohortsClient() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base_course_ids: [...editBaseIds] }),
+        body: JSON.stringify({
+          base_course_ids: [...new Set(selectedBaseRows.map((r) => r.baseId))],
+        }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Không lưu");
@@ -357,15 +410,47 @@ export default function WhitelistCohortsClient() {
     });
   };
 
-  const baseRows = useMemo(() => {
-    const rows: { id: string; programName: string; label: string }[] = [];
-    for (const prog of programs) {
-      for (const b of prog.base_courses) {
-        rows.push({ id: b.id, programName: prog.name, label: `${b.name} (${b.code})` });
-      }
+  const pickerProgram = useMemo(
+    () => programs.find((p) => p.id === pickerProgramId) ?? programs[0] ?? null,
+    [programs, pickerProgramId]
+  );
+
+  const addPickerBasesToList = () => {
+    const prog = pickerProgram;
+    if (!prog) {
+      setErr("Chưa có chương trình để chọn.");
+      return;
     }
-    return rows;
-  }, [programs]);
+    const ids = [...pickerChecked];
+    if (ids.length === 0) {
+      setErr("Chọn ít nhất một khóa cơ bản (ô tick) rồi bấm OK.");
+      return;
+    }
+    setErr(null);
+    setSelectedBaseRows((prev) => {
+      const have = new Set(prev.map((r) => r.baseId));
+      const next = [...prev];
+      for (const baseId of ids) {
+        if (have.has(baseId)) continue;
+        const b = prog.base_courses.find((x) => x.id === baseId);
+        if (!b) continue;
+        next.push({
+          key: rowKey(),
+          programId: prog.id,
+          programName: prog.name,
+          baseId: b.id,
+          baseLabel: `${b.name} (${b.code})`,
+        });
+        have.add(baseId);
+      }
+      return next;
+    });
+    setPickerChecked(new Set());
+  };
+
+  const removeSelectedBaseRow = (key: string) => {
+    setSelectedBaseRows((prev) => prev.filter((r) => r.key !== key));
+  };
 
   const importTable = (opts: { inModal: boolean }) => (
     <div className="space-y-3">
@@ -629,32 +714,128 @@ export default function WhitelistCohortsClient() {
 
           <div className="mt-6">
             <h3 className="text-sm font-semibold text-gray-200">Khóa cơ bản được miễn phí</h3>
-            <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-[#0a1628]/80 p-3">
-              {baseRows.map((row) => (
-                <label key={row.id} className="flex cursor-pointer items-start gap-2 py-1 text-sm text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={editBaseIds.has(row.id)}
-                    onChange={(e) => {
-                      const next = new Set(editBaseIds);
-                      if (e.target.checked) next.add(row.id);
-                      else next.delete(row.id);
-                      setEditBaseIds(next);
-                    }}
-                    className="mt-1"
-                  />
-                  <span>
-                    {row.label}
-                    <span className="block text-xs text-gray-500">{row.programName}</span>
-                  </span>
-                </label>
-              ))}
+            <p className="mt-1 text-xs text-gray-500">
+              Cột 1: chọn chương trình. Cột 2: tick một hoặc nhiều khóa. Bấm OK — mỗi khóa đã tick thành một hàng bên dưới.
+              Đổi chương trình / chọn lượt khác rồi OK để thêm hàng tiếp theo.
+            </p>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-400">Chương trình</label>
+                <select
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-sm text-white"
+                  value={
+                    programs.some((p) => p.id === pickerProgramId)
+                      ? pickerProgramId
+                      : (programs[0]?.id ?? "")
+                  }
+                  onChange={(e) => {
+                    setPickerProgramId(e.target.value);
+                    setPickerChecked(new Set());
+                  }}
+                >
+                  {programs.length === 0 ? (
+                    <option value="">Đang tải chương trình…</option>
+                  ) : (
+                    programs.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+              <div className="flex min-h-[120px] flex-col">
+                <span className="text-xs font-medium text-gray-400">Khóa cơ bản (ô tick)</span>
+                <div className="mt-1 max-h-48 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[#0a1628]/80 p-2">
+                  {pickerProgram && pickerProgram.base_courses.length > 0 ? (
+                    pickerProgram.base_courses.map((b) => (
+                      <label
+                        key={b.id}
+                        className="flex cursor-pointer items-start gap-2 border-b border-white/5 py-1.5 text-sm text-gray-300 last:border-0"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={pickerChecked.has(b.id)}
+                          onChange={(e) => {
+                            setPickerChecked((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(b.id);
+                              else next.delete(b.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span>
+                          {b.name} <span className="text-gray-500">({b.code})</span>
+                        </span>
+                      </label>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-500">Không có khóa trong chương trình này.</p>
+                  )}
+                </div>
+              </div>
             </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={saving || !pickerProgram || programs.length === 0}
+                onClick={() => addPickerBasesToList()}
+                className="rounded-full bg-[#D4AF37]/20 px-6 py-2 text-sm font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/25 disabled:opacity-50"
+              >
+                OK
+              </button>
+              <span className="text-xs text-gray-500">Đang tick trong lượt này: {pickerChecked.size} khóa</span>
+            </div>
+
+            <div className="mt-4">
+              <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Danh sách đã chọn ({selectedBaseRows.length})
+              </h4>
+              <div className="mt-2 overflow-x-auto rounded-lg border border-white/10">
+                <table className="w-full min-w-[480px] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-black/20 text-xs text-gray-500">
+                      <th className="px-3 py-2 font-medium">Chương trình</th>
+                      <th className="px-3 py-2 font-medium">Khóa cơ bản</th>
+                      <th className="w-20 px-2 py-2 text-right font-medium">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedBaseRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="px-3 py-4 text-center text-xs text-gray-500">
+                          Chưa có khóa. Chọn chương trình → tick khóa → OK.
+                        </td>
+                      </tr>
+                    ) : (
+                      selectedBaseRows.map((r) => (
+                        <tr key={r.key} className="border-b border-white/5">
+                          <td className="px-3 py-2 text-gray-300">{r.programName}</td>
+                          <td className="px-3 py-2 text-gray-100">{r.baseLabel}</td>
+                          <td className="px-2 py-2 text-right">
+                            <button
+                              type="button"
+                              className="text-xs text-red-300 hover:underline"
+                              onClick={() => removeSelectedBaseRow(r.key)}
+                            >
+                              Xóa
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             <button
               type="button"
               disabled={saving}
               onClick={() => void saveBases()}
-              className="mt-3 rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-semibold text-[#0a1628] disabled:opacity-50"
+              className="mt-4 rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-semibold text-[#0a1628] disabled:opacity-50"
             >
               Lưu khóa cơ bản
             </button>
