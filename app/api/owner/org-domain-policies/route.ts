@@ -45,6 +45,13 @@ function normalizeDomain(raw: string): string | null {
   return t;
 }
 
+function addYearsToIso(iso: string, years: number): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  d.setFullYear(d.getFullYear() + years);
+  return d.toISOString();
+}
+
 export async function GET() {
   const auth = await ensureOwner();
   if (!auth.ok) {
@@ -82,11 +89,77 @@ export async function GET() {
     counts[pid] = cErr && !isOrgDomainSchemaMissingError(cErr) ? 0 : count ?? 0;
   }
 
+  const policyIds = policies.map((p) => (p as { id: string }).id);
+  const linksByPolicy = new Map<string, { base_course_id: string }[]>();
+  if (policyIds.length > 0) {
+    const { data: allLinks } = await admin
+      .from("org_domain_policy_base_courses")
+      .select("policy_id, base_course_id")
+      .in("policy_id", policyIds);
+    for (const l of allLinks ?? []) {
+      const row = l as { policy_id: string; base_course_id: string };
+      if (!linksByPolicy.has(row.policy_id)) linksByPolicy.set(row.policy_id, []);
+      linksByPolicy.get(row.policy_id)!.push(row);
+    }
+  }
+
+  const baseIdSet = new Set<string>();
+  for (const arr of linksByPolicy.values()) {
+    for (const x of arr) baseIdSet.add(x.base_course_id);
+  }
+  const baseIdList = [...baseIdSet];
+
+  const { data: bases } =
+    baseIdList.length > 0
+      ? await admin.from("base_courses").select("id, name, code, program_id").in("id", baseIdList)
+      : { data: [] as { id: string; name: string; code: string; program_id: string }[] };
+
+  const progIdSet = new Set((bases ?? []).map((b) => (b as { program_id: string }).program_id));
+  const progIdList = [...progIdSet];
+
+  const { data: progs } =
+    progIdList.length > 0
+      ? await admin.from("programs").select("id, name").in("id", progIdList)
+      : { data: [] as { id: string; name: string }[] };
+
+  const progNameById: Record<string, string> = Object.fromEntries(
+    (progs ?? []).map((p) => [(p as { id: string }).id, (p as { name: string }).name])
+  );
+  const baseById: Record<string, { id: string; name: string; code: string; program_id: string }> = {};
+  for (const b of bases ?? []) {
+    const row = b as { id: string; name: string; code: string; program_id: string };
+    baseById[row.id] = row;
+  }
+
   return NextResponse.json({
-    policies: policies.map((p) => ({
-      ...(p as object),
-      seats_used: counts[(p as { id: string }).id] ?? 0,
-    })),
+    policies: policies.map((p) => {
+      const row = p as {
+        id: string;
+        created_at: string;
+        unused_expiry_years: number;
+      };
+      const pid = row.id;
+      const links = linksByPolicy.get(pid) ?? [];
+      const programNames = new Set<string>();
+      const baseLabels: string[] = [];
+      for (const link of links) {
+        const b = baseById[link.base_course_id];
+        if (!b) continue;
+        const pn = progNameById[b.program_id];
+        if (pn) programNames.add(pn);
+        baseLabels.push(`${b.name} (${b.code})`);
+      }
+      baseLabels.sort((a, b) => a.localeCompare(b, "vi"));
+      const programNamesSorted = [...programNames].sort((a, b) => a.localeCompare(b, "vi"));
+
+      return {
+        ...(p as object),
+        seats_used: counts[pid] ?? 0,
+        program_names: programNamesSorted,
+        base_course_labels: baseLabels,
+        reference_end_at: addYearsToIso(row.created_at, row.unused_expiry_years),
+      };
+    }),
   });
 }
 
