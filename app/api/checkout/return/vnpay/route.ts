@@ -6,8 +6,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifyVnpayReturn } from "../../../../../lib/vnpay";
+import { vnpayAmountMatchesDb } from "../../../../../lib/payment-gateway-verify";
 import { getSupabaseAdminClient } from "../../../../../lib/supabase-admin";
 import { activateEnrollmentFromPayment } from "../../../../../lib/activate-enrollment-from-payment";
+
+type PaymentRow = {
+  id: string;
+  user_id: string;
+  metadata: { course_id?: string } | null;
+  status: string;
+  amount_cents: number;
+};
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -29,39 +38,64 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = getSupabaseAdminClient();
-  const { data: payment, error: pErr } = await admin
+  const { data: before, error: fetchErr } = await admin
     .from("payments")
-    .update({
-      status: "completed",
-      gateway_transaction_id: vnp_TransactionNo,
-      gateway_response: params,
-      updated_at: new Date().toISOString(),
-    })
+    .select("id, user_id, amount_cents, metadata, status")
     .eq("id", vnp_TxnRef)
     .eq("gateway", "vnpay")
-    .eq("status", "pending")
-    .select("id, user_id, metadata, status")
-    .single();
+    .maybeSingle();
 
-  let normalizedPayment = payment as
-    | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
-    | null;
+  if (fetchErr || !before) {
+    return NextResponse.redirect(new URL("/checkout/failed?reason=not_found", request.url));
+  }
 
-  if (pErr || !normalizedPayment) {
-    // Idempotent refresh/retry: payment may already be completed.
-    const { data: existingPayment } = await admin
+  const row = before as PaymentRow;
+
+  if (!vnpayAmountMatchesDb(params.vnp_Amount, row.amount_cents)) {
+    console.error("[payment] VNPay return amount mismatch (not completing)", {
+      txnRef: vnp_TxnRef,
+      vnp_Amount: params.vnp_Amount,
+      dbAmountCents: row.amount_cents,
+    });
+    return NextResponse.redirect(new URL("/checkout/failed?reason=amount_mismatch", request.url));
+  }
+
+  if (row.status !== "pending" && row.status !== "completed") {
+    return NextResponse.redirect(new URL("/checkout/failed?reason=invalid_state", request.url));
+  }
+
+  let normalizedPayment: PaymentRow | null = row;
+
+  if (row.status === "pending") {
+    const { data: payment, error: pErr } = await admin
       .from("payments")
-      .select("id, user_id, metadata, status")
+      .update({
+        status: "completed",
+        gateway_transaction_id: vnp_TransactionNo,
+        gateway_response: params,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", vnp_TxnRef)
       .eq("gateway", "vnpay")
-      .maybeSingle();
-    const existing = existingPayment as
-      | { id: string; user_id: string; metadata: { course_id?: string } | null; status?: string }
-      | null;
-    if (!existing || existing.status !== "completed") {
-      return NextResponse.redirect(new URL("/checkout/failed?reason=update_failed", request.url));
+      .eq("status", "pending")
+      .select("id, user_id, metadata, status")
+      .single();
+
+    if (pErr || !payment) {
+      const { data: existingPayment } = await admin
+        .from("payments")
+        .select("id, user_id, metadata, status, amount_cents")
+        .eq("id", vnp_TxnRef)
+        .eq("gateway", "vnpay")
+        .maybeSingle();
+      const existing = existingPayment as PaymentRow | null;
+      if (!existing || existing.status !== "completed") {
+        return NextResponse.redirect(new URL("/checkout/failed?reason=update_failed", request.url));
+      }
+      normalizedPayment = existing;
+    } else {
+      normalizedPayment = payment as PaymentRow;
     }
-    normalizedPayment = existing;
   }
 
   const metadata = normalizedPayment.metadata as { course_id?: string } | null;

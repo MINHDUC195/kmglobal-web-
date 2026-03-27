@@ -6,22 +6,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { checkRateLimit } from "@/lib/rate-limit";
 
-async function ensureOwner() {
+async function ensureOwner(): Promise<{ ok: true; userId: string } | { ok: false }> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false as const };
+  if (!user) return { ok: false };
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if ((profile as { role?: string } | null)?.role !== "owner") return { ok: false as const };
-  return { ok: true as const };
+  if ((profile as { role?: string } | null)?.role !== "owner") return { ok: false };
+  return { ok: true, userId: user.id };
 }
 
 export async function GET(request: NextRequest) {
   const auth = await ensureOwner();
   if (!auth.ok) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const rl = await checkRateLimit(`owner-profile-email:${auth.userId}`, 120, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Quá nhiều yêu cầu tra cứu. Thử lại sau." },
+      { status: 429 }
+    );
   }
 
   const raw = request.nextUrl.searchParams.get("email")?.trim().toLowerCase() ?? "";
