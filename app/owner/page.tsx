@@ -46,12 +46,6 @@ const modules = [
     icon: "📜",
   },
   {
-    title: "Miễn phí theo domain",
-    desc: "Tổ chức — whitelist email, suất, khóa cơ bản miễn phí",
-    href: "/owner/org-domain",
-    icon: "🏢",
-  },
-  {
     title: "Whitelist đợt đào tạo",
     desc: "Import danh sách, gắn base — một suất miễn phí / học viên / base",
     href: "/owner/whitelist",

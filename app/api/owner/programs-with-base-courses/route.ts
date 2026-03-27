@@ -1,6 +1,6 @@
 /**
- * GET /api/owner/org-domain-programs
- * Danh sách chương trình + khóa học cơ bản (để chọn miễn phí theo domain).
+ * GET /api/owner/programs-with-base-courses
+ * Chương trình + khóa cơ bản (Owner) — dùng chọn base cho whitelist, v.v.
  */
 
 import { NextResponse } from "next/server";
@@ -31,7 +31,7 @@ export async function GET() {
     .order("name", { ascending: true });
 
   if (pErr) {
-    console.error("org-domain-programs programs:", pErr);
+    console.error("programs-with-base-courses programs:", pErr);
     return NextResponse.json({ error: "Không tải được chương trình" }, { status: 500 });
   }
 

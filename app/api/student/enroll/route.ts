@@ -13,10 +13,6 @@ import { canReactivateCanceledEnrollment } from "../../../../lib/enrollment-reac
 import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 import { getSalePriceCents } from "../../../../lib/course-price";
 import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
-import {
-  ensureOrgDomainFreePaymentAndMarkUse,
-  resolveOrgDomainFreeEnrollment,
-} from "../../../../lib/org-domain";
 import { insertWhitelistFreeGrant, resolveWhitelistFreeEnrollment } from "../../../../lib/whitelist";
 
 export async function POST(request: NextRequest) {
@@ -40,8 +36,6 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Bạn cần đăng nhập để đăng ký" }, { status: 401 });
     }
-    const userEmail = user.email ?? null;
-
     const profileBlock = await requireCompleteStudentProfileForApi(user.id);
     if (profileBlock) return profileBlock;
 
@@ -168,25 +162,7 @@ export async function POST(request: NextRequest) {
           updates.payment_id = fp.paymentId;
           whitelistCohortId = wl.cohortId;
         } else {
-          const org = await resolveOrgDomainFreeEnrollment(
-            admin,
-            user.id,
-            userEmail,
-            baseCourseId
-          );
-          if (org.ok) {
-            const fp = await ensureOrgDomainFreePaymentAndMarkUse(
-              admin,
-              user.id,
-              courseId,
-              org.entitlementId,
-              org.policyId,
-              org.markFirstUseAfterPayment
-            );
-            updates.payment_id = fp.paymentId;
-          } else {
-            updates.payment_id = null;
-          }
+          updates.payment_id = null;
         }
       } else {
         updates.payment_id = null;
@@ -245,24 +221,6 @@ export async function POST(request: NextRequest) {
         });
         freePaymentId = fp.paymentId;
         whitelistCohortId = wl.cohortId;
-      } else {
-        const org = await resolveOrgDomainFreeEnrollment(
-          admin,
-          user.id,
-          userEmail,
-          baseCourseId
-        );
-        if (org.ok) {
-          const fp = await ensureOrgDomainFreePaymentAndMarkUse(
-            admin,
-            user.id,
-            courseId,
-            org.entitlementId,
-            org.policyId,
-            org.markFirstUseAfterPayment
-          );
-          freePaymentId = fp.paymentId;
-        }
       }
     }
 

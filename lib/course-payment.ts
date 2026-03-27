@@ -43,7 +43,6 @@ export async function ensureCompletedFreePaymentForCourse(
   userId: string,
   courseId: string,
   options?: {
-    orgDomain?: { entitlementId: string; policyId: string };
     whitelist?: { cohortId: string };
   }
 ): Promise<{ paymentId: string; reused: boolean }> {
@@ -75,10 +74,6 @@ export async function ensureCompletedFreePaymentForCourse(
   if (options?.whitelist) {
     baseMeta.source = "whitelist";
     baseMeta.whitelist_cohort_id = options.whitelist.cohortId;
-  } else if (options?.orgDomain) {
-    baseMeta.source = "org_domain";
-    baseMeta.org_domain_entitlement_id = options.orgDomain.entitlementId;
-    baseMeta.org_domain_policy_id = options.orgDomain.policyId;
   }
 
   const { data, error } = await admin

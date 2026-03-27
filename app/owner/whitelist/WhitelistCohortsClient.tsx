@@ -293,7 +293,7 @@ export default function WhitelistCohortsClient() {
     setLoading(true);
     try {
       const [prRes, coRes] = await Promise.all([
-        fetch("/api/owner/org-domain-programs", { credentials: "same-origin" }),
+        fetch("/api/owner/programs-with-base-courses", { credentials: "same-origin" }),
         fetch("/api/owner/whitelist-cohorts", { credentials: "same-origin" }),
       ]);
       const pr = await prRes.json();
