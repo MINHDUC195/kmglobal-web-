@@ -10,6 +10,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { validateOrigin } from "@/lib/csrf";
 import { validatePasswordStrength } from "@/lib/password-policy";
 import { logAuditEvent } from "@/lib/audit-log";
+import { applyWhitelistAfterMemberAdded } from "@/lib/whitelist-reconcile";
 
 async function ensureOwner() {
   const supabase = await createServerSupabaseClient();
@@ -214,6 +215,13 @@ export async function POST(
         errors.push({ line: lineNum, message: memErr.message });
       }
       continue;
+    }
+    if (userId) {
+      try {
+        await applyWhitelistAfterMemberAdded(admin, userId, cohortId);
+      } catch (e) {
+        console.error("whitelist reconcile after import:", e);
+      }
     }
     okRows.push(lineNum);
   }

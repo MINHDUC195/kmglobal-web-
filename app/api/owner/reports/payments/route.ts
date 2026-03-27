@@ -51,6 +51,8 @@ type PaymentReportRowInternal = {
   payment_date_display: string;
   amount_cents: number;
   amount_display: string;
+  /** Giao dịch hoàn tất 0đ theo đợt whitelist (metadata.source = whitelist) */
+  is_whitelist: boolean;
   invoice_exported_at: string | null;
   enrollment_only: boolean;
   _user_id: string | null;
@@ -228,6 +230,9 @@ export async function GET(request: Request) {
 
     const effectiveEnrolledAt = earliestEnrolled ?? createdAt;
 
+    const payMeta = (p.metadata as { source?: string } | null) ?? {};
+    const isWhitelist = payMeta.source === "whitelist";
+
     return {
       id: p.id,
       program_name: programDisplay,
@@ -243,6 +248,7 @@ export async function GET(request: Request) {
       payment_date_display: paymentCompletedAt ? formatDateVi(paymentCompletedAt) : "—",
       amount_cents: p.amount_cents,
       amount_display: formatVnd(Number(p.amount_cents)),
+      is_whitelist: isWhitelist,
       invoice_exported_at: p.invoice_exported_at,
       enrollment_only: false,
       _user_id: p.user_id ?? null,
@@ -459,6 +465,7 @@ async function buildEnrollmentWithoutPaymentRows(
         payment_date_display: "—",
         amount_cents: 0,
         amount_display: "Miễn phí",
+        is_whitelist: false,
         invoice_exported_at: null,
         invoice_export_inconsistent: false,
         enrollment_only: true,
@@ -481,6 +488,7 @@ async function buildEnrollmentWithoutPaymentRows(
       payment_date_display: "—",
       amount_cents: saleCents,
       amount_display: formatVnd(saleCents),
+      is_whitelist: false,
       invoice_exported_at: null,
       invoice_export_inconsistent: false,
       enrollment_only: true,

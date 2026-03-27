@@ -18,6 +18,8 @@ type PaymentItem = {
   payment_date_display: string;
   amount_cents: number;
   amount_display: string;
+  /** Thanh toán hoàn tất 0đ theo whitelist (hiển thị nhãn cạnh số tiền) */
+  is_whitelist?: boolean;
   invoice_exported_at: string | null;
   invoice_state:
     | "not_applicable"
@@ -325,7 +327,14 @@ export default function OwnerReportsPage() {
                         ) : null}
                       </td>
                       <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm whitespace-nowrap">
-                        {row.amount_display}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span>{row.amount_display}</span>
+                          {row.is_whitelist ? (
+                            <span className="rounded-full bg-[#D4AF37]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#6b5a20]">
+                              Whitelist
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="border border-black/10 px-3 py-3 text-center">
                         <button

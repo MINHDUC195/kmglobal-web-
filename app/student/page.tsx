@@ -6,6 +6,7 @@ import ProgressBar from "../../components/ProgressBar";
 import SelfTempLockSection from "../../components/SelfTempLockSection";
 import CancelEnrollmentButton from "../../components/CancelEnrollmentButton";
 import { daysUntil } from "../../lib/course-lifecycle";
+import { syncWhitelistEnrollmentsForUser } from "../../lib/whitelist-reconcile";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,11 @@ export default async function StudentDashboardPage() {
   if (!user) return null;
 
   const admin = getSupabaseAdminClient();
+  try {
+    await syncWhitelistEnrollmentsForUser(admin, user.id);
+  } catch (e) {
+    console.error("syncWhitelistEnrollmentsForUser:", e);
+  }
   const { data: enrollments } = await admin
     .from("enrollments")
     .select(

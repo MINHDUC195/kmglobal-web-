@@ -49,6 +49,24 @@ export async function ensureCompletedFreePaymentForCourse(
 ): Promise<{ paymentId: string; reused: boolean }> {
   const existing = await findCompletedPaymentForCourse(admin, userId, courseId);
   if (existing) {
+    if (options?.whitelist) {
+      const meta = (existing.metadata as Record<string, unknown> | null | undefined) ?? {};
+      if (meta.source !== "whitelist") {
+        const now = new Date().toISOString();
+        await admin
+          .from("payments")
+          .update({
+            metadata: {
+              ...meta,
+              course_id: courseId,
+              source: "whitelist",
+              whitelist_cohort_id: options.whitelist.cohortId,
+            } as never,
+            updated_at: now,
+          })
+          .eq("id", existing.id);
+      }
+    }
     return { paymentId: existing.id, reused: true };
   }
 

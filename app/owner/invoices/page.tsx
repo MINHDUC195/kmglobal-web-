@@ -18,6 +18,7 @@ type PaymentItem = {
   payment_date_display: string;
   amount_cents: number;
   amount_display: string;
+  is_whitelist?: boolean;
   invoice_exported_at: string | null;
   invoice_state:
     | "not_applicable"
@@ -372,7 +373,14 @@ export default function OwnerInvoicesPage() {
                     <p>Mã HV: {row.student_code}</p>
                     <p>Mã giao dịch: {row.management_code}</p>
                     <p>Ngày thanh toán: {row.payment_date_display}</p>
-                    <p>Số tiền: {row.amount_display}</p>
+                    <p className="flex flex-wrap items-center gap-1.5">
+                      <span>Số tiền: {row.amount_display}</span>
+                      {row.is_whitelist ? (
+                        <span className="rounded-full bg-[#D4AF37]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#6b5a20]">
+                          Whitelist
+                        </span>
+                      ) : null}
+                    </p>
                     <p>VAT: {row.invoice_status_label}</p>
                   </div>
                   <button
@@ -472,7 +480,14 @@ export default function OwnerInvoicesPage() {
                           : row.payment_date_display}
                       </td>
                       <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm whitespace-nowrap">
-                        {row.amount_display}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span>{row.amount_display}</span>
+                          {row.is_whitelist ? (
+                            <span className="rounded-full bg-[#D4AF37]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#6b5a20]">
+                              Whitelist
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="border border-black/10 px-3 py-3 text-xs text-[#0a1628] sm:text-sm">
                         {invoiceLabel}
