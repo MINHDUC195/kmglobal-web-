@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
+import { parseWhitelistExcelBuffer } from "@/lib/whitelist-excel-import";
+
 type CohortRow = {
   id: string;
   name: string;
@@ -206,7 +208,6 @@ export default function WhitelistCohortsClient() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [notes, setNotes] = useState("");
   const [createStatus, setCreateStatus] = useState("draft");
   const [createAppliesFrom, setCreateAppliesFrom] = useState("");
   const [createAppliesUntil, setCreateAppliesUntil] = useState("");
@@ -225,9 +226,24 @@ export default function WhitelistCohortsClient() {
   const [editAppliesFrom, setEditAppliesFrom] = useState("");
   const [editAppliesUntil, setEditAppliesUntil] = useState("");
 
-  const [importRows, setImportRows] = useState<ImportRow[]>(() => [newImportRow()]);
-  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [memberModalOpen, setMemberModalOpen] = useState(false);
+  /** null = thêm mới */
+  const [memberModalEditKey, setMemberModalEditKey] = useState<string | null>(null);
+  const [memberDraft, setMemberDraft] = useState<{
+    email: string;
+    password: string;
+    student_code: string;
+    full_name: string;
+    existingAccount: boolean;
+  }>({
+    email: "",
+    password: "",
+    student_code: "",
+    full_name: "",
+    existingAccount: false,
+  });
 
   const showSuccess = useCallback((msg: string) => {
     setSuccessMsg(msg);
@@ -271,7 +287,7 @@ export default function WhitelistCohortsClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          notes: notes.trim() || null,
+          notes: null,
           status: createStatus,
           applies_from: datetimeLocalInputToIso(createAppliesFrom),
           applies_until: datetimeLocalInputToIso(createAppliesUntil),
@@ -280,7 +296,6 @@ export default function WhitelistCohortsClient() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Không tạo được");
       setName("");
-      setNotes("");
       setCreateAppliesFrom("");
       setCreateAppliesUntil("");
       showSuccess("Đã tạo đợt whitelist.");
@@ -295,7 +310,7 @@ export default function WhitelistCohortsClient() {
   const openDetail = async (id: string) => {
     setDetailId(id);
     setImportResult(null);
-    setImportRows([newImportRow()]);
+    setImportRows([]);
     setErr(null);
     try {
       const res = await fetch(`/api/owner/whitelist-cohorts/${id}`, { credentials: "same-origin" });
@@ -374,6 +389,8 @@ export default function WhitelistCohortsClient() {
       }
       showSuccess("Đã lưu trạng thái và khoảng thời gian áp dụng.");
       await load();
+      setDetailId(null);
+      setDetail(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi");
     } finally {
@@ -405,7 +422,7 @@ export default function WhitelistCohortsClient() {
         );
       }
       setImportResult(parts.join("\n"));
-      setImportRows([newImportRow()]);
+      setImportRows([]);
       showSuccess(`Import xong: ${j.ok} dòng thành công.`);
       await load();
     } catch (e) {
@@ -413,16 +430,6 @@ export default function WhitelistCohortsClient() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const submitImportFromTable = () => {
-    const csv = rowsToCsv(importRows);
-    const lines = csv.split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) {
-      setErr("Thêm ít nhất một dòng có email.");
-      return;
-    }
-    void runImport(csv);
   };
 
   const deleteCohort = async (id: string, cohortName: string) => {
@@ -455,26 +462,10 @@ export default function WhitelistCohortsClient() {
     }
   };
 
-  const mergePasteIntoRows = (text: string) => {
-    const parsed = parseBulkText(text);
-    if (parsed.length === 0) return;
-    setImportRows((prev) => {
-      const kept = prev.filter((r) => r.email.trim());
-      const next = parsed.map((p) => ({
-        ...p,
-        existingAccount: false,
-        key: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-      }));
-      return [...kept, ...next, newImportRow()];
-    });
-  };
-
-  const lookupEmailForRow = async (rowIndex: number, emailRaw: string) => {
+  const lookupEmailDraft = async (emailRaw: string) => {
     const e = emailRaw.trim().toLowerCase();
     if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
-      setImportRows((prev) =>
-        prev.map((r, i) => (i === rowIndex ? { ...r, existingAccount: false } : r))
-      );
+      setMemberDraft((d) => ({ ...d, existingAccount: false }));
       return;
     }
     try {
@@ -487,29 +478,108 @@ export default function WhitelistCohortsClient() {
         student_code?: string;
       };
       if (res.ok && j.found) {
-        setImportRows((prev) =>
-          prev.map((r, i) =>
-            i === rowIndex
-              ? {
-                  ...r,
-                  existingAccount: true,
-                  password: "",
-                  full_name: (j.full_name && j.full_name.trim()) || r.full_name,
-                  student_code: (j.student_code && j.student_code.trim()) || r.student_code,
-                }
-              : r
-          )
-        );
+        setMemberDraft((d) => ({
+          ...d,
+          existingAccount: true,
+          password: "",
+          full_name: (j.full_name && j.full_name.trim()) || d.full_name,
+          student_code: (j.student_code && j.student_code.trim()) || d.student_code,
+        }));
       } else {
-        setImportRows((prev) =>
-          prev.map((r, i) => (i === rowIndex ? { ...r, existingAccount: false } : r))
-        );
+        setMemberDraft((d) => ({ ...d, existingAccount: false }));
       }
     } catch {
-      setImportRows((prev) =>
-        prev.map((r, i) => (i === rowIndex ? { ...r, existingAccount: false } : r))
+      setMemberDraft((d) => ({ ...d, existingAccount: false }));
+    }
+  };
+
+  const openMemberModalAdd = () => {
+    setMemberModalEditKey(null);
+    setMemberDraft({
+      email: "",
+      password: "",
+      student_code: "",
+      full_name: "",
+      existingAccount: false,
+    });
+    setMemberModalOpen(true);
+  };
+
+  const openMemberModalEdit = (row: ImportRow) => {
+    setMemberModalEditKey(row.key);
+    setMemberDraft({
+      email: row.email,
+      password: row.password,
+      student_code: row.student_code,
+      full_name: row.full_name,
+      existingAccount: row.existingAccount ?? false,
+    });
+    setMemberModalOpen(true);
+  };
+
+  const saveMemberModal = async () => {
+    const email = memberDraft.email.trim();
+    if (!email) {
+      setErr("Nhập email.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErr("Email không hợp lệ.");
+      return;
+    }
+    setErr(null);
+    let nextRows: ImportRow[];
+    if (memberModalEditKey === null) {
+      const row: ImportRow = {
+        ...newImportRow(),
+        email,
+        password: memberDraft.existingAccount ? "" : memberDraft.password,
+        student_code: memberDraft.student_code.trim(),
+        full_name: memberDraft.full_name.trim(),
+        existingAccount: memberDraft.existingAccount,
+      };
+      nextRows = [...importRows, row];
+    } else {
+      nextRows = importRows.map((r) =>
+        r.key === memberModalEditKey
+          ? {
+              ...r,
+              email,
+              password: memberDraft.existingAccount ? "" : memberDraft.password,
+              student_code: memberDraft.student_code.trim(),
+              full_name: memberDraft.full_name.trim(),
+              existingAccount: memberDraft.existingAccount,
+            }
+          : r
       );
     }
+    setImportRows(nextRows);
+    setMemberModalOpen(false);
+    const csv = rowsToCsv(nextRows);
+    const lines = csv.split(/\r?\n/).filter(Boolean);
+    if (lines.length >= 2) {
+      await runImport(csv);
+    }
+  };
+
+  const mergeParsedIntoRowsAndImport = (
+    parsed: Omit<ImportRow, "key" | "existingAccount">[]
+  ) => {
+    if (parsed.length === 0) return;
+    setImportRows((prev) => {
+      const appended: ImportRow[] = parsed.map((p) => ({
+        ...p,
+        key: rowKey(),
+        existingAccount: false,
+      }));
+      const merged = [...prev, ...appended];
+      const csv = rowsToCsv(merged);
+      const lines = csv.split(/\r?\n/).filter(Boolean);
+      if (lines.length >= 2) {
+        queueMicrotask(() => void runImport(csv));
+      }
+      return merged;
+    });
   };
 
   const pickerProgram = useMemo(
@@ -566,101 +636,65 @@ export default function WhitelistCohortsClient() {
     }
   };
 
-  const importTable = (opts: { inModal: boolean }) => (
+  const importTableBlock = (
     <div className="space-y-3">
       <div className="overflow-x-auto rounded-lg border border-white/10">
         <table className="w-full min-w-[640px] border-collapse text-left text-sm text-gray-200">
           <thead>
             <tr className="border-b border-white/10 bg-black/20 text-xs text-gray-400">
               <th className="px-2 py-2 font-medium">Email *</th>
-              <th className="px-2 py-2 font-medium">Mật khẩu (chỉ khi tạo tài khoản mới)</th>
+              <th className="px-2 py-2 font-medium">Mật khẩu</th>
               <th className="px-2 py-2 font-medium">Mã HV</th>
               <th className="px-2 py-2 font-medium">Họ tên</th>
-              <th className="w-10 px-1 py-2" aria-hidden />
+              <th className="min-w-[100px] px-2 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {importRows.map((row, idx) => (
-              <tr key={row.key} className="border-b border-white/5">
-                <td className="px-1 py-1 align-top">
-                  <input
-                    className="w-full min-w-[180px] rounded border border-white/15 bg-[#0a1628] px-2 py-1.5 text-white"
-                    value={row.email}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setImportRows((prev) =>
-                        prev.map((r, i) =>
-                          i === idx ? { ...r, email: v, existingAccount: false } : r
-                        )
-                      );
-                    }}
-                    onBlur={(e) => void lookupEmailForRow(idx, e.target.value)}
-                    placeholder="a@domain.com"
-                    autoComplete="off"
-                  />
-                </td>
-                <td className="px-1 py-1 align-top">
-                  {row.existingAccount ? (
-                    <div className="min-w-[140px] rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-xs text-emerald-200/90">
-                      Không cần — đã có tài khoản
-                    </div>
-                  ) : (
-                    <input
-                      type="password"
-                      className="w-full min-w-[140px] rounded border border-white/15 bg-[#0a1628] px-2 py-1.5 text-white"
-                      value={row.password}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setImportRows((prev) =>
-                          prev.map((r, i) => (i === idx ? { ...r, password: v } : r))
-                        );
-                      }}
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                    />
-                  )}
-                </td>
-                <td className="px-1 py-1 align-top">
-                  <input
-                    className="w-full min-w-[100px] rounded border border-white/15 bg-[#0a1628] px-2 py-1.5 text-white"
-                    value={row.student_code}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setImportRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, student_code: v } : r))
-                      );
-                    }}
-                  />
-                </td>
-                <td className="px-1 py-1 align-top">
-                  <input
-                    className="w-full min-w-[140px] rounded border border-white/15 bg-[#0a1628] px-2 py-1.5 text-white"
-                    value={row.full_name}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setImportRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, full_name: v } : r))
-                      );
-                    }}
-                  />
-                </td>
-                <td className="px-1 py-1 align-top">
-                  <button
-                    type="button"
-                    className="rounded px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
-                    onClick={() => {
-                      setImportRows((prev) => {
-                        if (prev.length <= 1) return [newImportRow()];
-                        return prev.filter((_, i) => i !== idx);
-                      });
-                    }}
-                    aria-label="Xóa dòng"
-                  >
-                    ✕
-                  </button>
+            {importRows.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-xs text-gray-500">
+                  Chưa có dòng nào. Bấm &quot;+ Thêm dòng&quot; để nhập trong hộp thoại, hoặc chọn file Excel / CSV để nhập hàng loạt.
                 </td>
               </tr>
-            ))}
+            ) : (
+              importRows.map((row) => (
+                <tr key={row.key} className="border-b border-white/5">
+                  <td className="px-2 py-2 align-top text-gray-100">{row.email || "—"}</td>
+                  <td className="px-2 py-2 align-top">
+                    {row.existingAccount ? (
+                      <span className="text-xs text-emerald-200/90">Đã có tài khoản</span>
+                    ) : row.password ? (
+                      <span className="tracking-widest text-gray-400">••••••••</span>
+                    ) : (
+                      <span className="text-gray-500">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 align-top text-gray-200">{row.student_code || "—"}</td>
+                  <td className="px-2 py-2 align-top text-gray-200">{row.full_name || "—"}</td>
+                  <td className="px-2 py-2 align-top">
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        className="rounded px-2 py-1 text-xs text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                        onClick={() => openMemberModalEdit(row)}
+                      >
+                        Sửa
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                        onClick={() => {
+                          setImportRows((prev) => prev.filter((r) => r.key !== row.key));
+                        }}
+                        aria-label="Xóa dòng"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -668,41 +702,52 @@ export default function WhitelistCohortsClient() {
         <button
           type="button"
           className="rounded-full border border-white/20 px-4 py-2 text-sm text-white hover:bg-white/5"
-          onClick={() => setImportRows((prev) => [...prev, newImportRow()])}
+          onClick={() => openMemberModalAdd()}
         >
           + Thêm dòng
         </button>
-        {!opts.inModal && (
-          <button
-            type="button"
-            className="rounded-full border border-[#D4AF37]/50 px-4 py-2 text-sm text-[#D4AF37] hover:bg-[#D4AF37]/10"
-            onClick={() => setImportModalOpen(true)}
-          >
-            Nhập nhanh (dán / file)…
-          </button>
-        )}
         <label className="cursor-pointer rounded-full border border-white/20 px-4 py-2 text-sm text-gray-300 hover:bg-white/5">
-          Chọn file .csv
+          Chọn file Excel / CSV
           <input
             type="file"
-            accept=".csv,.txt,text/csv"
+            accept=".csv,.txt,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="sr-only"
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (!f) return;
-              const reader = new FileReader();
-              reader.onload = () => {
-                const t = String(reader.result ?? "");
-                mergePasteIntoRows(t);
-                e.target.value = "";
-              };
-              reader.readAsText(f, "UTF-8");
+              const name = f.name.toLowerCase();
+              const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
+              if (isExcel) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const buf = reader.result;
+                  if (buf instanceof ArrayBuffer) {
+                    try {
+                      const parsed = parseWhitelistExcelBuffer(buf);
+                      mergeParsedIntoRowsAndImport(parsed);
+                    } catch (err) {
+                      setErr(err instanceof Error ? err.message : "Không đọc được file Excel.");
+                    }
+                  }
+                  e.target.value = "";
+                };
+                reader.readAsArrayBuffer(f);
+              } else {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const t = String(reader.result ?? "");
+                  const parsed = parseBulkText(t);
+                  mergeParsedIntoRowsAndImport(parsed);
+                  e.target.value = "";
+                };
+                reader.readAsText(f, "UTF-8");
+              }
             }}
           />
         </label>
       </div>
       <p className="text-xs text-gray-500">
-        Nhập email rồi rời khỏi ô: nếu đã có trong hệ thống, hệ thống tự điền họ tên và mã HV — không cần mật khẩu. Tài khoản mới: mật khẩu tối thiểu 10 ký tự, có chữ hoa, thường và số.
+        Trong hộp thoại Thêm/Sửa: nhập email rồi rời khỏi ô — nếu đã có trong hệ thống, hệ thống tự điền họ tên và mã HV; không cần mật khẩu. Tài khoản mới: mật khẩu tối thiểu 10 ký tự, có chữ hoa, thường và số. File Excel: cột email, mật khẩu, mã HV, họ tên (có thể có dòng tiêu đề).
       </p>
     </div>
   );
@@ -758,15 +803,6 @@ export default function WhitelistCohortsClient() {
             Tạo
           </button>
         </div>
-        <label className="mt-3 block text-sm text-gray-300">
-          Ghi chú
-          <textarea
-            className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </label>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-sm text-gray-300">
             Áp dụng từ
@@ -1007,15 +1043,7 @@ export default function WhitelistCohortsClient() {
 
           <div className="mt-8">
             <h3 className="text-sm font-semibold text-gray-200">Thêm học viên vào đợt</h3>
-            {importTable({ inModal: false })}
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void submitImportFromTable()}
-              className="mt-3 rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-semibold text-[#0a1628] disabled:opacity-50"
-            >
-              Gửi danh sách
-            </button>
+            {importTableBlock}
             {importResult && (
               <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-gray-300">
                 {importResult}
@@ -1036,48 +1064,85 @@ export default function WhitelistCohortsClient() {
         </section>
       )}
 
-      {importModalOpen && (
+      {memberModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby={modalTitleId}
           onClick={(e) => {
-            if (e.target === e.currentTarget) setImportModalOpen(false);
-          }}
-          onPaste={(e) => {
-            const t = e.clipboardData?.getData("text/plain");
-            if (t?.trim()) {
-              e.preventDefault();
-              mergePasteIntoRows(t);
-            }
+            if (e.target === e.currentTarget) setMemberModalOpen(false);
           }}
         >
           <div
-            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-white/15 bg-[#0f1f38] p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-xl border border-white/15 bg-[#0f1f38] p-6 shadow-xl"
+            onClick={(ev) => ev.stopPropagation()}
           >
             <h3 id={modalTitleId} className="text-lg font-semibold text-white">
-              Nhập nhanh — dán từ Excel hoặc chọn file
+              {memberModalEditKey === null ? "Thêm học viên" : "Sửa học viên"}
             </h3>
-            <p className="mt-1 text-xs text-gray-400">
-              Dán vào cửa sổ này (Ctrl+V): cột theo thứ tự email, mật khẩu, mã HV, họ tên — hoặc dùng file CSV có dòng tiêu đề.
-            </p>
-            <div className="mt-4">{importTable({ inModal: true })}</div>
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm text-gray-300">
+                Email *
+                <input
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+                  value={memberDraft.email}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setMemberDraft((d) => ({ ...d, email: v, existingAccount: false }));
+                  }}
+                  onBlur={(e) => void lookupEmailDraft(e.target.value)}
+                  placeholder="a@domain.com"
+                  autoComplete="off"
+                />
+              </label>
+              {memberDraft.existingAccount ? (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200/90">
+                  Đã có tài khoản — không cần mật khẩu.
+                </div>
+              ) : (
+                <label className="block text-sm text-gray-300">
+                  Mật khẩu (khi tạo tài khoản mới)
+                  <input
+                    type="password"
+                    className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+                    value={memberDraft.password}
+                    onChange={(e) => setMemberDraft((d) => ({ ...d, password: e.target.value }))}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                </label>
+              )}
+              <label className="block text-sm text-gray-300">
+                Mã HV
+                <input
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+                  value={memberDraft.student_code}
+                  onChange={(e) => setMemberDraft((d) => ({ ...d, student_code: e.target.value }))}
+                />
+              </label>
+              <label className="block text-sm text-gray-300">
+                Họ tên
+                <input
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-[#0a1628] px-3 py-2 text-white"
+                  value={memberDraft.full_name}
+                  onChange={(e) => setMemberDraft((d) => ({ ...d, full_name: e.target.value }))}
+                />
+              </label>
+            </div>
             <div className="mt-6 flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-semibold text-[#0a1628]"
-                onClick={() => {
-                  setImportModalOpen(false);
-                }}
+                disabled={saving}
+                className="rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-semibold text-[#0a1628] disabled:opacity-50"
+                onClick={() => void saveMemberModal()}
               >
-                Xong — quay lại màn chi tiết
+                Lưu và gửi lên đợt
               </button>
               <button
                 type="button"
                 className="rounded-full border border-white/20 px-5 py-2 text-sm text-gray-300 hover:bg-white/5"
-                onClick={() => setImportModalOpen(false)}
+                onClick={() => setMemberModalOpen(false)}
               >
                 Hủy
               </button>
