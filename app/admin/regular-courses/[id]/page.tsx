@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminBreadcrumbStrip } from "../../../../components/AdminHierarchyBreadcrumb";
-import RegularCourseApprovalPanel from "../../../../components/RegularCourseApprovalPanel";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getCourseDisplayStatus } from "../../../../lib/course-status";
 
@@ -37,9 +36,6 @@ export default async function RegularCoursePage({ params }: RegularCoursePagePro
 
   const baseCourse = course.base_course as { id: string; name: string; code: string } | null;
   const program = course.program as { id: string; name: string } | null;
-  const approvalStatus =
-    (course as { approval_status?: string | null }).approval_status ?? "pending";
-
   const regularBreadcrumb = [
     { label: "Chương trình", href: "/admin/programs" },
     ...(program?.id
@@ -64,8 +60,6 @@ export default async function RegularCoursePage({ params }: RegularCoursePagePro
             Khóa thường · Clone từ: {baseCourse?.name ?? "-"} · Trạng thái: {displayStatus ?? "-"}
           </p>
         </div>
-
-        <RegularCourseApprovalPanel courseId={id} approvalStatus={approvalStatus} />
 
         <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-6">
           <h2 className="mb-4 font-semibold text-white">Thông tin khóa học thường</h2>
