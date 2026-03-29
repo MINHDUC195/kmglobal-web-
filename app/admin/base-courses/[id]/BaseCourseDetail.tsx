@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { getSupabaseBrowserClient } from "../../../../lib/supabase-browser";
+import { parsePromotionTiers } from "../../../../lib/promotion-tiers";
 
 type Chapter = {
   id: string;
@@ -60,6 +61,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
   const [cloneName, setCloneName] = useState("");
   const [clonePriceCents, setClonePriceCents] = useState("");
   const [cloneDiscountPercent, setCloneDiscountPercent] = useState("");
+  const [clonePromotionTiersJson, setClonePromotionTiersJson] = useState("");
 
   async function handleAddChapter(e: FormEvent) {
     e.preventDefault();
@@ -160,6 +162,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
     setCloneName(`${course.name} (Khóa mới)`);
     setClonePriceCents("");
     setCloneDiscountPercent("");
+    setClonePromotionTiersJson("");
     setCloneModal(true);
     setError("");
   }
@@ -179,6 +182,23 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
         : null;
       if (discountVal !== null && (discountVal < 1 || discountVal > 99)) throw new Error("Giảm giá phải từ 1-99%");
 
+      const tiersTrim = clonePromotionTiersJson.trim();
+      let promotion_tiers: object | null = null;
+      if (tiersTrim) {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(tiersTrim) as unknown;
+        } catch {
+          throw new Error("Ưu đãi theo suất: JSON không hợp lệ");
+        }
+        if (!parsePromotionTiers(parsed)) {
+          throw new Error(
+            "Ưu đãi theo suất: cần ≥2 phần tử, các đợt trước có slots nguyên ≥1, phần tử cuối có \"slots\": null và discount 1–99%."
+          );
+        }
+        promotion_tiers = parsed as object;
+      }
+
       const { data: regularCourse, error: err } = await supabase
         .from("regular_courses")
         .insert({
@@ -189,6 +209,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
           price_cents: priceVal,
           discount_percent: discountVal,
           discount_percent_locked: true,
+          promotion_tiers,
         })
         .select()
         .single();
@@ -517,7 +538,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <form
             onSubmit={handleCloneToRegular}
-            className="w-full max-w-md rounded-xl border border-white/10 bg-[#0a1628] p-6 shadow-xl"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-white/10 bg-[#0a1628] p-6 shadow-xl"
           >
             <h3 className="text-lg font-semibold text-[#D4AF37]">Nhân bản khóa học thường</h3>
             <p className="mt-2 text-sm text-gray-400">
@@ -547,7 +568,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-white/90">Giảm giá (%)</label>
+                <label className="mb-1 block text-sm font-medium text-white/90">Giảm giá cố định (%)</label>
                 <input
                   type="number"
                   min="0"
@@ -558,7 +579,25 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
                   className="w-full rounded-lg border border-white/15 bg-[#0b1323] px-3 py-2 text-white outline-none focus:border-[#D4AF37]"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  1-99% để thu hút khách hàng. Sau khi tạo khóa, % giảm giá được cố định — không chỉnh lại trong màn sửa khóa học thường (tránh lệch giá thanh toán / nhiều yêu cầu thanh toán).
+                  Dùng khi <strong className="font-medium text-gray-400">không</strong> cấu hình ưu đãi theo suất bên dưới. 1–99%. Sau khi tạo, % này được{" "}
+                  <strong className="font-medium text-gray-400">khóa</strong> — không sửa trên màn chỉnh sửa (tránh lệch giá thanh toán). Có thể chỉnh JSON đợt ưu đãi sau.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-white/90">
+                  Ưu đãi theo suất (JSON, tùy chọn)
+                </label>
+                <textarea
+                  value={clonePromotionTiersJson}
+                  onChange={(e) => setClonePromotionTiersJson(e.target.value)}
+                  rows={6}
+                  spellCheck={false}
+                  placeholder={`[\n  { "slots": 50, "discount_percent": 50 },\n  { "slots": 20, "discount_percent": 30 },\n  { "slots": null, "discount_percent": 20 }\n]`}
+                  className="w-full rounded-lg border border-white/15 bg-[#0b1323] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#D4AF37] sm:text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Để trống = chỉ dùng % cố định ở trên. Khi JSON hợp lệ, giá bán theo từng đợt (bỏ qua % cố định). Phần tử cuối phải có{" "}
+                  <code className="text-gray-400">slots: null</code> (đợt không giới hạn suất). Có thể sửa lại JSON trên màn chỉnh sửa khóa học thường sau.
                 </p>
               </div>
             </div>
@@ -570,7 +609,10 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
             <div className="mt-6 flex gap-3">
               <button
                 type="button"
-                onClick={() => setCloneModal(false)}
+                onClick={() => {
+                  setClonePromotionTiersJson("");
+                  setCloneModal(false);
+                }}
                 className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/5"
               >
                 Hủy
