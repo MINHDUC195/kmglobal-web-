@@ -1280,6 +1280,7 @@ export type Database = {
       }
       regular_courses: {
         Row: {
+          active_enrollment_count: number
           base_course_id: string | null
           course_end_at: string | null
           course_start_at: string | null
@@ -1290,12 +1291,14 @@ export type Database = {
           name: string
           price_cents: number | null
           program_id: string | null
+          promotion_tiers: Json | null
           registration_close_at: string | null
           registration_open_at: string | null
           status: string | null
           updated_at: string | null
         }
         Insert: {
+          active_enrollment_count?: number
           base_course_id?: string | null
           course_end_at?: string | null
           course_start_at?: string | null
@@ -1306,12 +1309,14 @@ export type Database = {
           name: string
           price_cents?: number | null
           program_id?: string | null
+          promotion_tiers?: Json | null
           registration_close_at?: string | null
           registration_open_at?: string | null
           status?: string | null
           updated_at?: string | null
         }
         Update: {
+          active_enrollment_count?: number
           base_course_id?: string | null
           course_end_at?: string | null
           course_start_at?: string | null
@@ -1322,6 +1327,7 @@ export type Database = {
           name?: string
           price_cents?: number | null
           program_id?: string | null
+          promotion_tiers?: Json | null
           registration_close_at?: string | null
           registration_open_at?: string | null
           status?: string | null

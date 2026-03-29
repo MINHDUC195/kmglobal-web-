@@ -182,6 +182,7 @@ export const config = {
     "/api/lesson-questions/:path*",
     "/api/student/enrollments",
     "/api/student/enrollments/:path*",
+    "/api/catalog/enrollment-counts",
     "/api/courses/:id",
     "/api/lessons/:id",
     "/api/student/certificates/:id/pdf",

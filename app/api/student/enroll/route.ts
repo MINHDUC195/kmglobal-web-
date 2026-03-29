@@ -12,6 +12,7 @@ import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-li
 import { canReactivateCanceledEnrollment } from "../../../../lib/enrollment-reactivation";
 import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
 import { getSalePriceCents } from "../../../../lib/course-price";
+import { getEffectiveDiscountPercent } from "../../../../lib/promotion-tiers";
 import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
 import { insertWhitelistFreeGrant, resolveWhitelistFreeEnrollment } from "../../../../lib/whitelist";
 import {
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
     const { data: course, error: cErr } = await admin
       .from("regular_courses")
       .select(
-        "id, name, base_course_id, registration_open_at, registration_close_at, course_end_at, price_cents, discount_percent"
+        "id, name, base_course_id, registration_open_at, registration_close_at, course_end_at, price_cents, discount_percent, promotion_tiers, active_enrollment_count"
       )
       .eq("id", courseId)
       .single();
@@ -155,8 +156,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: re.message }, { status: 400 });
       }
       const priceCents = Number((course as { price_cents?: number | null }).price_cents) || 0;
-      const discountPercent =
-        (course as { discount_percent?: number | null }).discount_percent ?? null;
+      const nEnrolled = Math.max(
+        0,
+        Math.floor(Number((course as { active_enrollment_count?: number }).active_enrollment_count) || 0)
+      );
+      const discountPercent = getEffectiveDiscountPercent(
+        (course as { promotion_tiers?: unknown }).promotion_tiers,
+        (course as { discount_percent?: number | null }).discount_percent,
+        nEnrolled
+      );
       const salePriceCents = getSalePriceCents(priceCents, discountPercent);
       const updates: { status: "active"; updated_at: string; payment_id?: string | null } = {
         status: "active",
@@ -219,7 +227,15 @@ export async function POST(request: NextRequest) {
     }
 
     const priceCents = Number((course as { price_cents?: number | null }).price_cents) || 0;
-    const discountPercent = (course as { discount_percent?: number | null }).discount_percent ?? null;
+    const nEnrolledNew = Math.max(
+      0,
+      Math.floor(Number((course as { active_enrollment_count?: number }).active_enrollment_count) || 0)
+    );
+    const discountPercent = getEffectiveDiscountPercent(
+      (course as { promotion_tiers?: unknown }).promotion_tiers,
+      (course as { discount_percent?: number | null }).discount_percent,
+      nEnrolledNew
+    );
     const salePriceCents = getSalePriceCents(priceCents, discountPercent);
     let freePaymentId: string | null = null;
     let whitelistCohortId: string | null = null;

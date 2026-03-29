@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import { getSupabaseAdminClient } from "../../lib/supabase-admin";
 import { getSalePriceCents } from "../../lib/course-price";
+import { getEffectiveDiscountPercent } from "../../lib/promotion-tiers";
 import ProgressBar from "../../components/ProgressBar";
 import SelfTempLockSection from "../../components/SelfTempLockSection";
 import CancelEnrollmentButton from "../../components/CancelEnrollmentButton";
@@ -29,7 +30,7 @@ export default async function StudentDashboardPage() {
       enrolled_at,
       payment_id,
       regular_course_id,
-      regular_courses(id, name, price_cents, discount_percent, registration_close_at, course_end_at, base_course:base_courses(id))
+      regular_courses(id, name, price_cents, discount_percent, promotion_tiers, active_enrollment_count, registration_close_at, course_end_at, base_course:base_courses(id))
     `
     )
     .eq("user_id", user.id)
@@ -106,6 +107,8 @@ export default async function StudentDashboardPage() {
       name?: string | null;
       price_cents?: number | null;
       discount_percent?: number | null;
+      promotion_tiers?: unknown;
+      active_enrollment_count?: number | null;
       registration_close_at?: string | null;
       course_end_at?: string | null;
       base_course?: { id?: string } | null;
@@ -115,7 +118,12 @@ export default async function StudentDashboardPage() {
     const completedCount = completedByEnrollment.get(e.id) ?? 0;
 
     const priceCents = Number(rc?.price_cents) || 0;
-    const discountPercent = rc?.discount_percent ?? null;
+    const n = Math.max(0, Math.floor(Number(rc?.active_enrollment_count) || 0));
+    const discountPercent = getEffectiveDiscountPercent(
+      rc?.promotion_tiers,
+      rc?.discount_percent,
+      n
+    );
     const salePriceCents = getSalePriceCents(priceCents, discountPercent);
     const isFreeCourse = salePriceCents <= 0;
     const isPaid =

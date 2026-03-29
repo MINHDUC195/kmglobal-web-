@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AdminBreadcrumbStrip } from "../../../../../components/AdminHierarchyBreadcrumb";
 import { getSupabaseBrowserClient } from "../../../../../lib/supabase-browser";
+import { parsePromotionTiers } from "../../../../../lib/promotion-tiers";
 
 function toLocalDateTime(iso: string | null): string {
   if (!iso) return "";
@@ -47,6 +48,7 @@ export default function EditRegularCoursePage() {
   const [baseCourseId, setBaseCourseId] = useState<string | null>(null);
   const [baseCourseName, setBaseCourseName] = useState("");
   const [discountPercentLocked, setDiscountPercentLocked] = useState(false);
+  const [promotionTiersJson, setPromotionTiersJson] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -80,6 +82,8 @@ export default function EditRegularCoursePage() {
       }
       const locked = (data as { discount_percent_locked?: boolean }).discount_percent_locked === true;
       setDiscountPercentLocked(locked);
+      const pt = (data as { promotion_tiers?: unknown }).promotion_tiers;
+      setPromotionTiersJson(pt != null ? JSON.stringify(pt, null, 2) : "");
     }
     void load().finally(() => setLoading(false));
   }, [id, supabase]);
@@ -100,7 +104,7 @@ export default function EditRegularCoursePage() {
         }
       }
 
-      const patch: Record<string, string | number | null> = {
+      const patch: Record<string, unknown> = {
         name: name.trim(),
         price_cents: priceVal,
         registration_open_at: fromLocalDateTime(registrationOpenAt),
@@ -111,6 +115,24 @@ export default function EditRegularCoursePage() {
       };
       if (!discountPercentLocked) {
         patch.discount_percent = discountVal;
+      }
+
+      const tiersTrim = promotionTiersJson.trim();
+      if (tiersTrim) {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(tiersTrim) as unknown;
+        } catch {
+          throw new Error("promotion_tiers: JSON không hợp lệ");
+        }
+        if (!parsePromotionTiers(parsed)) {
+          throw new Error(
+            "promotion_tiers: cần ≥2 phần tử, các đợt trước có slots nguyên ≥1, phần tử cuối có \"slots\": null và discount 1–99%."
+          );
+        }
+        patch.promotion_tiers = parsed as object;
+      } else {
+        patch.promotion_tiers = null;
       }
 
       const { error: err } = await supabase.from("regular_courses").update(patch).eq("id", id);
@@ -212,6 +234,24 @@ export default function EditRegularCoursePage() {
               {discountPercentLocked
                 ? "Giảm giá đã cố định khi tạo khóa từ nhân bản. Không chỉnh sau để tránh lệch giá thanh toán hoặc nhiều yêu cầu thanh toán cho cùng học viên."
                 : "1-99%. Để trống nếu không giảm giá."}
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-white/90">
+              Ưu đãi theo suất (JSON, tùy chọn)
+            </label>
+            <textarea
+              value={promotionTiersJson}
+              onChange={(e) => setPromotionTiersJson(e.target.value)}
+              rows={8}
+              spellCheck={false}
+              placeholder={`[\n  { "slots": 50, "discount_percent": 50 },\n  { "slots": 20, "discount_percent": 30 },\n  { "slots": null, "discount_percent": 20 }\n]`}
+              className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 font-mono text-sm text-white outline-none focus:border-[#D4AF37]"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Để trống = chỉ dùng % giảm cố định ở trên. Khi có JSON hợp lệ, giá bán chỉ theo các đợt (bỏ qua % cố định).
+              Phần tử cuối phải có <code className="text-gray-400">slots: null</code> (đợt không giới hạn suất).
             </p>
           </div>
 

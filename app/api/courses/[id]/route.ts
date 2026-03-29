@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { requireCompleteStudentProfileForApi } from "../../../../lib/student-profile-api-guard";
+import { getEffectiveDiscountPercent } from "../../../../lib/promotion-tiers";
 
 export async function GET(
   request: NextRequest,
@@ -41,7 +42,9 @@ export async function GET(
 
     const { data: course, error } = await supabase
       .from("regular_courses")
-      .select("id, name, price_cents, discount_percent, registration_open_at, registration_close_at")
+      .select(
+        "id, name, price_cents, discount_percent, promotion_tiers, active_enrollment_count, registration_open_at, registration_close_at"
+      )
       .eq("id", id)
       .single();
 
@@ -59,7 +62,23 @@ export async function GET(
       return NextResponse.json({ error: "Đã hết hạn đăng ký" }, { status: 400 });
     }
 
-    return NextResponse.json(course);
+    const row = course as {
+      price_cents?: number | null;
+      discount_percent?: number | null;
+      promotion_tiers?: unknown;
+      active_enrollment_count?: number;
+    };
+    const n = Math.max(0, Math.floor(Number(row.active_enrollment_count) || 0));
+    const effective_discount_percent = getEffectiveDiscountPercent(
+      row.promotion_tiers,
+      row.discount_percent,
+      n
+    );
+
+    return NextResponse.json({
+      ...course,
+      effective_discount_percent,
+    });
   } catch (err) {
     console.error("Course fetch error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

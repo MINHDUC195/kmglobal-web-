@@ -7,11 +7,21 @@ import DashboardNav from "../../components/DashboardNav";
 import Footer from "../../components/Footer";
 import { fetchWithRetry } from "../../lib/fetch-retry";
 import { SELF_SERVICE_ENROLLMENT_FORBIDDEN } from "../../lib/self-service-enrollment-messages";
+import { parsePromotionTiers } from "../../lib/promotion-tiers";
+import PromotionTiersCachHai from "../../components/PromotionTiersCachHai";
 
 function CheckoutPageContent() {
   const searchParams = useSearchParams();
   const courseId = searchParams.get("courseId");
-  const [course, setCourse] = useState<{ id: string; name: string; price_cents: number; discount_percent?: number | null } | null>(null);
+  const [course, setCourse] = useState<{
+    id: string;
+    name: string;
+    price_cents: number;
+    discount_percent?: number | null;
+    promotion_tiers?: unknown;
+    active_enrollment_count?: number;
+    effective_discount_percent?: number | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -121,11 +131,17 @@ function CheckoutPageContent() {
   }
 
   const priceVnd = Number(course.price_cents) || 0;
-  const discount = course.discount_percent ?? null;
+  const discount =
+    course.effective_discount_percent != null
+      ? course.effective_discount_percent
+      : course.discount_percent ?? null;
   const formatPrice = (n: number) => new Intl.NumberFormat("vi-VN").format(n) + " ₫";
-  const salePriceVnd = discount && discount >= 1 && discount <= 99
-    ? Math.round((priceVnd * (100 - discount)) / 100)
-    : priceVnd;
+  const salePriceVnd =
+    discount != null && discount >= 1 && discount <= 99
+      ? Math.round((priceVnd * (100 - discount)) / 100)
+      : priceVnd;
+  const nCheckout = Math.max(0, Math.floor(Number(course.active_enrollment_count) || 0));
+  const showTierCheckout = parsePromotionTiers(course.promotion_tiers) != null;
 
   return (
     <div className="min-h-screen bg-[#0a1628]">
@@ -147,6 +163,17 @@ function CheckoutPageContent() {
             </p>
           ) : (
             <p className="mt-2 text-2xl font-bold text-[#D4AF37]">{formatPrice(priceVnd)}</p>
+          )}
+          {showTierCheckout && (
+            <div className="mt-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Ưu đãi theo suất
+              </p>
+              <PromotionTiersCachHai
+                activeEnrollmentCount={nCheckout}
+                promotionTiers={course.promotion_tiers}
+              />
+            </div>
           )}
         </div>
 

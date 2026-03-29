@@ -26,6 +26,7 @@ import {
   isRoleBlockedFromSelfServiceEnrollment,
   jsonSelfServiceEnrollmentForbidden,
 } from "../../../../lib/self-service-enrollment";
+import { getEffectiveDiscountPercent } from "../../../../lib/promotion-tiers";
 
 /** Khi migration `checkout_course_id` chưa áp trên Supabase, PostgREST báo lỗi cột / schema cache. */
 function isMissingCheckoutCourseIdColumn(err: unknown): boolean {
@@ -139,7 +140,9 @@ export async function POST(request: NextRequest) {
 
     const { data: course, error: cErr } = await admin
       .from("regular_courses")
-      .select("id, name, base_course_id, price_cents, discount_percent, registration_open_at, registration_close_at")
+      .select(
+        "id, name, base_course_id, price_cents, discount_percent, promotion_tiers, active_enrollment_count, registration_open_at, registration_close_at"
+      )
       .eq("id", courseId)
       .single();
 
@@ -198,9 +201,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // price_cents: VND amount. Áp dụng giảm giá nếu có.
+    // price_cents: VND amount. Giảm giá: promotion_tiers (ưu tiên) hoặc discount_percent.
     const priceCents = Number(course.price_cents) || 0;
-    const discountPercent = (course as { discount_percent?: number | null }).discount_percent ?? null;
+    const nEnrolled = Math.max(
+      0,
+      Math.floor(Number((course as { active_enrollment_count?: number }).active_enrollment_count) || 0)
+    );
+    const discountPercent = getEffectiveDiscountPercent(
+      (course as { promotion_tiers?: unknown }).promotion_tiers,
+      (course as { discount_percent?: number | null }).discount_percent,
+      nEnrolled
+    );
     const amountCents = getSalePriceCents(priceCents, discountPercent);
     const amountVnd = amountCents;
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;

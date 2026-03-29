@@ -9,7 +9,9 @@ import {
   isRoleBlockedFromSelfServiceEnrollment,
   SELF_SERVICE_ENROLLMENT_FORBIDDEN,
 } from "../../../lib/self-service-enrollment";
+import { getEffectiveDiscountPercent, parsePromotionTiers } from "../../../lib/promotion-tiers";
 import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
+import PromotionTiersCachHai from "../../../components/PromotionTiersCachHai";
 import CourseDetailModal from "./CourseDetailModal";
 import EnrollButton from "../../../components/EnrollButton";
 import CancelEnrollmentButton from "../../../components/CancelEnrollmentButton";
@@ -32,6 +34,8 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
       name,
       price_cents,
       discount_percent,
+      promotion_tiers,
+      active_enrollment_count,
       registration_open_at,
       registration_close_at,
       course_start_at,
@@ -167,12 +171,8 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
         lessons: (lessonsByChapter[ch.id] ?? []).sort((a, b) => a.sortOrder - b.sortOrder),
       }));
 
-      const { count: enrollCount } = await admin
-        .from("enrollments")
-        .select("id", { count: "exact", head: true })
-        .eq("regular_course_id", id)
-        .eq("status", "active");
-      enrolledCount = enrollCount ?? 0;
+      enrolledCount =
+        Math.max(0, Math.floor(Number((course as { active_enrollment_count?: number }).active_enrollment_count) || 0));
 
       const { data: enrolls } = await admin
         .from("enrollments")
@@ -192,8 +192,17 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
   }
 
   const price = Number(course.price_cents) || 0;
-  const discount = (course as { discount_percent?: number | null }).discount_percent ?? null;
-  const priceInfo = formatPriceDisplay(price, discount);
+  const nPublic = Math.max(
+    0,
+    Math.floor(Number((course as { active_enrollment_count?: number }).active_enrollment_count) || 0)
+  );
+  const effectiveDiscount = getEffectiveDiscountPercent(
+    (course as { promotion_tiers?: unknown }).promotion_tiers,
+    (course as { discount_percent?: number | null }).discount_percent,
+    nPublic
+  );
+  const priceInfo = formatPriceDisplay(price, effectiveDiscount);
+  const showTierBlock = parsePromotionTiers((course as { promotion_tiers?: unknown }).promotion_tiers) != null;
   const status = getCourseDisplayStatus(
     course.registration_open_at,
     course.registration_close_at,
@@ -309,13 +318,25 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
           );
         })()}
 
+        {showTierBlock && (
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Ưu đãi theo suất
+            </p>
+            <PromotionTiersCachHai
+              activeEnrollmentCount={nPublic}
+              promotionTiers={(course as { promotion_tiers?: unknown }).promotion_tiers}
+            />
+          </div>
+        )}
+
         <div className="mt-8 flex flex-wrap items-center gap-6">
-          {priceInfo.hasDiscount ? (
+          {priceInfo.hasDiscount && effectiveDiscount != null ? (
             <div className="text-2xl font-bold">
               <span className="line-through text-gray-500">{priceInfo.originalDisplay}</span>
               <span className="ml-2 text-[#D4AF37]">{priceInfo.saleDisplay}</span>
               <span className="ml-2 rounded-full bg-red-500/20 px-3 py-1 text-sm font-semibold text-red-300">
-                -{discount}%
+                -{effectiveDiscount}%
               </span>
             </div>
           ) : (

@@ -10,6 +10,8 @@ import { daysUntil } from "../../../../lib/course-lifecycle";
 import { formatPriceDisplay } from "../../../../lib/course-price";
 import { stripRevSuffix } from "../../../../lib/course-display-name";
 import { getBaseCourseIdsToHideForUser } from "../../../../lib/hide-improved-courses-for-old-students";
+import { getEffectiveDiscountPercent, parsePromotionTiers } from "../../../../lib/promotion-tiers";
+import PromotionTiersCachHai from "../../../../components/PromotionTiersCachHai";
 
 type ProgramCoursesPageProps = {
   params: Promise<{ id: string }>;
@@ -116,7 +118,13 @@ export default async function ProgramCoursesPage({ params }: ProgramCoursesPageP
             {courses.map((c) => {
               const base = c.base_course as { name?: string; code?: string; summary?: string } | null;
               const price = Number(c.price_cents) || 0;
-              const discount = (c as { discount_percent?: number | null }).discount_percent ?? null;
+              const n = Math.max(0, Math.floor(Number(c.active_enrollment_count) || 0));
+              const discount = getEffectiveDiscountPercent(
+                c.promotion_tiers,
+                c.discount_percent,
+                n
+              );
+              const showTiers = parsePromotionTiers(c.promotion_tiers) != null;
               const priceInfo = formatPriceDisplay(price, discount);
               const status = getCourseDisplayStatus(
                 c.registration_open_at,
@@ -156,6 +164,11 @@ export default async function ProgramCoursesPage({ params }: ProgramCoursesPageP
                     </div>
                   {base?.summary && (
                     <p className="mt-2 line-clamp-2 text-sm text-gray-300">{base.summary}</p>
+                  )}
+                  {showTiers && (
+                    <div className="mt-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                      <PromotionTiersCachHai activeEnrollmentCount={n} promotionTiers={c.promotion_tiers} />
+                    </div>
                   )}
                   <div className="mt-3 space-y-2 text-xs text-gray-500">
                     <div>
@@ -228,7 +241,7 @@ export default async function ProgramCoursesPage({ params }: ProgramCoursesPageP
                     </div>
                   ) : null}
                   <div className="mt-4">
-                    {priceInfo.hasDiscount ? (
+                    {priceInfo.hasDiscount && discount != null ? (
                       <p className="font-bold text-[#D4AF37]">
                         <span className="line-through text-gray-500">{priceInfo.originalDisplay}</span>
                         <span className="ml-2">{priceInfo.saleDisplay}</span>
