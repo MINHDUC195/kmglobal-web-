@@ -1,7 +1,7 @@
 /**
  * Giá khóa học và giảm giá.
  * price_cents: giá gốc (VNĐ)
- * discount_percent: phần trăm giảm (1-99), null = không giảm
+ * discount_percent: phần trăm giảm (0–99; dưới 1% coi như không giảm), null = không giảm
  */
 
 export function getSalePriceCents(

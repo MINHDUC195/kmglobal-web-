@@ -99,8 +99,8 @@ export default function EditRegularCoursePage() {
         ? Math.min(99, Math.max(0, Math.round(parseFloat(discountPercent))))
         : null;
       if (!discountPercentLocked) {
-        if (discountVal !== null && (discountVal < 1 || discountVal > 99)) {
-          throw new Error("Giảm giá phải từ 1-99%");
+        if (discountVal !== null && (discountVal < 0 || discountVal > 99)) {
+          throw new Error("Giảm giá phải từ 0–99%");
         }
       }
 
@@ -127,7 +127,7 @@ export default function EditRegularCoursePage() {
         }
         if (!parsePromotionTiers(parsed)) {
           throw new Error(
-            "promotion_tiers: cần ≥2 phần tử, các đợt trước có slots nguyên ≥1, phần tử cuối có \"slots\": null và discount 1–99%."
+            "promotion_tiers: cần ≥2 phần tử, các đợt trước có slots nguyên ≥1, phần tử cuối có \"slots\": null và discount_percent nguyên 0–99."
           );
         }
         patch.promotion_tiers = parsed as object;
@@ -233,7 +233,7 @@ export default function EditRegularCoursePage() {
             <p className="mt-1 text-xs text-gray-500">
               {discountPercentLocked
                 ? "Giảm giá đã cố định khi tạo khóa từ nhân bản. Không chỉnh sau để tránh lệch giá thanh toán hoặc nhiều yêu cầu thanh toán cho cùng học viên."
-                : "1-99%. Để trống nếu không giảm giá."}
+                : "0–99%. Để trống nếu không giảm giá."}
             </p>
           </div>
 

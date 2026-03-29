@@ -18,7 +18,7 @@ export function parsePromotionTiers(raw: unknown): PromotionTier[] | null {
     const item = raw[i];
     if (!isRecord(item)) return null;
     const d = Number(item.discount_percent);
-    if (!Number.isFinite(d) || d < 1 || d > 99) return null;
+    if (!Number.isFinite(d) || !Number.isInteger(d) || d < 0 || d > 99) return null;
     const isLast = i === raw.length - 1;
     if (isLast) {
       if (item.slots != null) return null;
@@ -69,7 +69,7 @@ export function getEffectiveDiscountPercent(
     return discountForNextEnrollment(tiers, activeEnrollmentCount);
   }
   const d = staticDiscountPercent;
-  if (d != null && d >= 1 && d <= 99) return d;
+  if (d != null && d >= 0 && d <= 99) return d;
   return null;
 }
 
@@ -77,6 +77,11 @@ export type CachHaiLine = {
   text: string;
   tone: "active" | "exhausted" | "pending" | "tail_pending" | "tail_active";
 };
+
+function tierDiscountPhrase(d: number): string {
+  if (d <= 0) return "giá gốc (0%)";
+  return `-${d}%`;
+}
 
 /** UI Cách 2: luôn đủ dòng cho mỗi đợt (capped + đợt đuôi). */
 export function buildPromotionTierCachHaiLines(
@@ -104,7 +109,7 @@ export function buildPromotionTierCachHaiLines(
     if (i === 0) {
       if (n < end) {
         lines.push({
-          text: `Đợt 1: Còn ${end - n}/${S} suất · -${D}%`,
+          text: `Đợt 1: Còn ${end - n}/${S} suất · ${tierDiscountPhrase(D)}`,
           tone: "active",
         });
       } else {
@@ -121,7 +126,7 @@ export function buildPromotionTierCachHaiLines(
         });
       } else if (n < end) {
         lines.push({
-          text: `Đợt ${i + 1}: Còn ${end - n}/${S} suất · -${D}%`,
+          text: `Đợt ${i + 1}: Còn ${end - n}/${S} suất · ${tierDiscountPhrase(D)}`,
           tone: "active",
         });
       } else {
@@ -144,12 +149,12 @@ export function buildPromotionTierCachHaiLines(
 
   if (n < capTotal) {
     lines.push({
-      text: `${afterCappedLabel}: -${dTail}% (không giới hạn suất)`,
+      text: `${afterCappedLabel}: ${tierDiscountPhrase(dTail)} (không giới hạn suất)`,
       tone: "tail_pending",
     });
   } else {
     lines.push({
-      text: `Đang áp dụng: -${dTail}% (không giới hạn suất)`,
+      text: `Đang áp dụng: ${tierDiscountPhrase(dTail)} (không giới hạn suất)`,
       tone: "tail_active",
     });
   }
