@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AdminBreadcrumbStrip } from "../../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../../components/DashboardNav";
-import Footer from "../../../../../components/Footer";
 import { getSupabaseBrowserClient } from "../../../../../lib/supabase-browser";
 
 type CertConfig = {
@@ -251,28 +249,20 @@ export default function EditBaseCoursePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-gray-400">Đang tải...</p>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
   if (error && !code) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-red-400">{error}</p>
           <Link href="/admin/programs" className="mt-4 inline-block text-[#D4AF37] hover:underline">
             ← Về danh sách
           </Link>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
@@ -286,8 +276,7 @@ export default function EditBaseCoursePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip items={editBaseBreadcrumb} />
 
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
@@ -541,8 +530,6 @@ export default function EditBaseCoursePage() {
           </div>
         </form>
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

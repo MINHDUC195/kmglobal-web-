@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import DashboardNav from "../../../components/DashboardNav";
-import Footer from "../../../components/Footer";
 import ListPagination from "../../../components/ListPagination";
 import {
   clampPage,
@@ -67,9 +65,6 @@ export default async function QuestionLibraryPage({ searchParams }: PageProps) {
     .order("name");
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
-
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
         <Link
           href="/admin"
@@ -119,8 +114,5 @@ export default async function QuestionLibraryPage({ searchParams }: PageProps) {
           query={{ programId: programId || undefined, difficulty: difficulty || undefined }}
         />
       </main>
-
-      <Footer hideLogo />
-    </div>
   );
 }

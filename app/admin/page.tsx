@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
-import DashboardNav from "../../components/DashboardNav";
-import Footer from "../../components/Footer";
 
 export const dynamic = "force-dynamic";
 
@@ -41,9 +39,6 @@ export default async function AdminDashboardPage() {
   const isOwner = (profile as { role?: string } | null)?.role === "owner";
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
-
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -88,8 +83,5 @@ export default async function AdminDashboardPage() {
           ))}
         </div>
       </main>
-
-      <Footer hideLogo />
-    </div>
   );
 }

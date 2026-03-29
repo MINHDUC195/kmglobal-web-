@@ -14,6 +14,10 @@ import { requireCompleteStudentProfileForApi } from "../../../../lib/student-pro
 import { getSalePriceCents } from "../../../../lib/course-price";
 import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
 import { insertWhitelistFreeGrant, resolveWhitelistFreeEnrollment } from "../../../../lib/whitelist";
+import {
+  isRoleBlockedFromSelfServiceEnrollment,
+  jsonSelfServiceEnrollmentForbidden,
+} from "../../../../lib/self-service-enrollment";
 
 export async function POST(request: NextRequest) {
   const rl = await checkRateLimit(
@@ -39,13 +43,22 @@ export async function POST(request: NextRequest) {
     const profileBlock = await requireCompleteStudentProfileForApi(user.id);
     if (profileBlock) return profileBlock;
 
+    const admin = getSupabaseAdminClient();
+    const { data: roleRow } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const gateRole = (roleRow as { role?: string } | null)?.role;
+    if (isRoleBlockedFromSelfServiceEnrollment(gateRole)) {
+      return jsonSelfServiceEnrollmentForbidden();
+    }
+
     const body = await request.json();
     const courseId = (body as { courseId?: string }).courseId;
     if (!courseId) {
       return NextResponse.json({ error: "courseId là bắt buộc" }, { status: 400 });
     }
-
-    const admin = getSupabaseAdminClient();
 
     const { data: lockProfile } = await admin
       .from("profiles")

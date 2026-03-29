@@ -22,6 +22,10 @@ import { requireCompleteStudentProfileForApi } from "../../../../lib/student-pro
 import { ensureCompletedFreePaymentForCourse } from "../../../../lib/course-payment";
 import { assertEnrollmentCanActivateAfterPayment } from "../../../../lib/enrollment-payment-activate";
 import { insertWhitelistFreeGrant, resolveWhitelistFreeEnrollment } from "../../../../lib/whitelist";
+import {
+  isRoleBlockedFromSelfServiceEnrollment,
+  jsonSelfServiceEnrollmentForbidden,
+} from "../../../../lib/self-service-enrollment";
 
 /** Khi migration `checkout_course_id` chưa áp trên Supabase, PostgREST báo lỗi cột / schema cache. */
 function isMissingCheckoutCourseIdColumn(err: unknown): boolean {
@@ -76,6 +80,17 @@ export async function POST(request: NextRequest) {
     const profileBlock = await requireCompleteStudentProfileForApi(userId);
     if (profileBlock) return profileBlock;
 
+    const admin = getSupabaseAdminClient();
+    const { data: checkoutRoleRow } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+    const checkoutRole = (checkoutRoleRow as { role?: string } | null)?.role;
+    if (isRoleBlockedFromSelfServiceEnrollment(checkoutRole)) {
+      return jsonSelfServiceEnrollmentForbidden();
+    }
+
     const body = await request.json();
     const { courseId, gateway, idempotencyKey } = body as {
       courseId?: string;
@@ -99,8 +114,6 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-
-    const admin = getSupabaseAdminClient();
 
     const { data: lockProfile } = await admin
       .from("profiles")

@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AdminBreadcrumbStrip } from "../../../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../../../components/DashboardNav";
-import Footer from "../../../../../../components/Footer";
 import { getSupabaseBrowserClient } from "../../../../../../lib/supabase-browser";
 
 export default function NewBaseCoursePage() {
@@ -73,19 +71,14 @@ export default function NewBaseCoursePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-gray-400">Đang tải...</p>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip
         items={[
           { label: "Chương trình", href: "/admin/programs" },
@@ -194,8 +187,6 @@ export default function NewBaseCoursePage() {
           </div>
         </form>
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminBreadcrumbStrip } from "../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../components/DashboardNav";
-import Footer from "../../../components/Footer";
 
 type CourseRow = {
   id: string;
@@ -126,8 +124,7 @@ export default function AdminRegularCoursesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip
         items={[
           { label: "Trang quản trị", href: "/admin" },
@@ -292,7 +289,6 @@ export default function AdminRegularCoursesPage() {
           </div>
         )}
       </main>
-      <Footer hideLogo />
 
       {modalCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -330,6 +326,6 @@ export default function AdminRegularCoursesPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

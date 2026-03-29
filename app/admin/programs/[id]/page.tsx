@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminBreadcrumbStrip } from "../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../components/DashboardNav";
-import Footer from "../../../../components/Footer";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import ProgramBaseCoursesTable from "./ProgramBaseCoursesTable";
 
@@ -38,8 +36,7 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip items={programBreadcrumb} />
 
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
@@ -81,8 +78,6 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
           />
         </div>
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

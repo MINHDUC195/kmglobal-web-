@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
-import DashboardNav from "../../../../components/DashboardNav";
-import Footer from "../../../../components/Footer";
 import { generateNextQuestionCode } from "../../../../lib/question-code";
 import { HIDE_FROM_LIBRARY_TAG } from "../../../../lib/question-tags";
 import { getSupabaseBrowserClient } from "../../../../lib/supabase-browser";
@@ -281,9 +279,6 @@ function NewQuestionContent() {
   const sep = <span className="mx-1.5 text-gray-600" aria-hidden="true">›</span>;
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
-
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
         <nav aria-label="Đường dẫn quản trị" className="mb-6 flex flex-wrap items-center gap-y-1 text-sm">
           {!showContextLoader && (
@@ -572,9 +567,6 @@ function NewQuestionContent() {
           </div>
         </form>
       </main>
-
-      <Footer hideLogo />
-    </div>
   );
 }
 
@@ -582,7 +574,7 @@ export default function NewQuestionPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#0a1628] px-6 py-12 text-center text-gray-400">
+        <div className="px-6 py-12 text-center text-gray-400">
           Đang tải...
         </div>
       }

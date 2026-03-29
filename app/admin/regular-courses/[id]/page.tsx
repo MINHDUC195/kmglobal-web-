@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminBreadcrumbStrip } from "../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../components/DashboardNav";
-import Footer from "../../../../components/Footer";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getCourseDisplayStatus } from "../../../../lib/course-status";
 
@@ -51,8 +49,7 @@ export default async function RegularCoursePage({ params }: RegularCoursePagePro
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip items={regularBreadcrumb} />
 
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
@@ -151,8 +148,6 @@ export default async function RegularCoursePage({ params }: RegularCoursePagePro
           </Link>
         )}
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

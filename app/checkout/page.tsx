@@ -6,6 +6,7 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import DashboardNav from "../../components/DashboardNav";
 import Footer from "../../components/Footer";
 import { fetchWithRetry } from "../../lib/fetch-retry";
+import { SELF_SERVICE_ENROLLMENT_FORBIDDEN } from "../../lib/self-service-enrollment-messages";
 
 function CheckoutPageContent() {
   const searchParams = useSearchParams();
@@ -14,29 +15,45 @@ function CheckoutPageContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [selfServiceAllowed, setSelfServiceAllowed] = useState(true);
 
   useEffect(() => {
     if (!courseId) {
       setLoading(false);
       return;
     }
+    let cancelled = false;
     async function load() {
+      setLoading(true);
       try {
-        const res = await fetch(`/api/courses/${courseId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setCourse(data);
+        const [courseRes, eligRes] = await Promise.all([
+          fetch(`/api/courses/${courseId}`),
+          fetch("/api/student/self-service-eligibility", { credentials: "include" }),
+        ]);
+        if (!cancelled && courseRes.ok) {
+          setCourse(await courseRes.json());
+        }
+        if (!cancelled && eligRes.ok) {
+          const elig = (await eligRes.json()) as { allowed?: boolean; authenticated?: boolean };
+          if (elig.authenticated && elig.allowed === false) {
+            setSelfServiceAllowed(false);
+          } else {
+            setSelfServiceAllowed(true);
+          }
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     void load();
+    return () => {
+      cancelled = true;
+    };
   }, [courseId]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>, gateway: string) {
     e.preventDefault();
-    if (!courseId || submitting) return;
+    if (!courseId || submitting || !selfServiceAllowed) return;
     setError("");
     setSubmitting(true);
     try {
@@ -133,12 +150,18 @@ function CheckoutPageContent() {
           )}
         </div>
 
+        {!selfServiceAllowed && (
+          <p className="mt-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {SELF_SERVICE_ENROLLMENT_FORBIDDEN}
+          </p>
+        )}
+
         <div className="mt-8">
           <h2 className="mb-4 text-lg font-semibold text-white">Chọn phương thức thanh toán</h2>
           <form className="space-y-3" onSubmit={(e) => handleSubmit(e, "vnpay")}>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !selfServiceAllowed}
               className="flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10 disabled:opacity-50"
             >
               <span className="font-medium text-white">VNPay (QR / Chuyển khoản)</span>
@@ -148,7 +171,7 @@ function CheckoutPageContent() {
           <form className="mt-3" onSubmit={(e) => handleSubmit(e, "momo")}>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !selfServiceAllowed}
               className="flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10 disabled:opacity-50"
             >
               <span className="font-medium text-white">Ví MoMo</span>
@@ -158,7 +181,7 @@ function CheckoutPageContent() {
           <form className="mt-3" onSubmit={(e) => handleSubmit(e, "stripe")}>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !selfServiceAllowed}
               className="flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10 disabled:opacity-50"
             >
               <span className="font-medium text-white">Thẻ Visa / Quốc tế (Stripe)</span>

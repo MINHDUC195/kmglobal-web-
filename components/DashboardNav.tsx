@@ -13,12 +13,21 @@ type DashboardNavProps = {
   initialDisplayName?: string | null;
   /** Link "Khám phá khóa học" - chỉ hiện cho student */
   showExploreCourses?: boolean;
+  /** Admin được promote: vào khu học viên */
+  showStudentHubLink?: boolean;
+  /** Đang ở khu học viên nhưng là admin có hub → về quản trị */
+  showAdminHubLink?: boolean;
+  /** Trên /admin khi user là owner */
+  showOwnerHubLink?: boolean;
 };
 
 export default function DashboardNav({
   greeting = "bạn",
   initialDisplayName,
   showExploreCourses = false,
+  showStudentHubLink = false,
+  showAdminHubLink = false,
+  showOwnerHubLink = false,
 }: DashboardNavProps) {
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
@@ -54,7 +63,31 @@ export default function DashboardNav({
     <nav className="border-b border-white/8 bg-[#0a1628]/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-[var(--container-max)] items-center justify-between px-4 py-3 sm:px-6">
         <NavLogoWithBanner />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {showOwnerHubLink && (
+            <Link
+              href="/owner"
+              className="text-sm font-medium text-[#D4AF37] hover:underline"
+            >
+              Khu Owner
+            </Link>
+          )}
+          {showStudentHubLink && (
+            <Link
+              href="/student"
+              className="text-sm font-medium text-emerald-300 hover:underline"
+            >
+              Khu học viên
+            </Link>
+          )}
+          {showAdminHubLink && (
+            <Link
+              href="/admin"
+              className="text-sm font-medium text-[#D4AF37] hover:underline"
+            >
+              Quản trị
+            </Link>
+          )}
           {showExploreCourses && (
             <Link
               href="/courses"

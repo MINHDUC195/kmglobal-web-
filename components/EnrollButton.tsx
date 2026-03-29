@@ -7,13 +7,23 @@ type EnrollButtonProps = {
   courseId: string;
   className?: string;
   children?: React.ReactNode;
+  /** Khi true: không gọi API; dùng cùng thông báo với chặn server (admin/owner). */
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
-export default function EnrollButton({ courseId, className, children }: EnrollButtonProps) {
+export default function EnrollButton({
+  courseId,
+  className,
+  children,
+  disabled = false,
+  disabledReason,
+}: EnrollButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleEnroll() {
+    if (disabled) return;
     setLoading(true);
     setError("");
     try {
@@ -48,14 +58,13 @@ export default function EnrollButton({ courseId, className, children }: EnrollBu
       <button
         type="button"
         onClick={handleEnroll}
-        disabled={loading}
+        disabled={loading || disabled}
+        title={disabled ? disabledReason : undefined}
         className={className ?? "rounded-full bg-[#D4AF37] px-6 py-2.5 text-sm font-bold text-black hover:bg-[#E7C768] disabled:opacity-50"}
       >
         {loading ? "Đang đăng ký..." : (children ?? "Đăng ký ngay")}
       </button>
-      {error && (
-        <p className="mt-2 text-sm text-red-400">{error}</p>
-      )}
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </div>
   );
 }

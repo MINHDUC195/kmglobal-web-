@@ -1,7 +1,5 @@
 import { notFound } from "next/navigation";
 import { AdminBreadcrumbStrip } from "../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../components/DashboardNav";
-import Footer from "../../../../components/Footer";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import BaseCourseDetail from "./BaseCourseDetail";
 
@@ -56,8 +54,7 @@ export default async function BaseCoursePage({ params }: BaseCoursePageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip items={baseCourseBreadcrumb} />
 
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
@@ -67,8 +64,6 @@ export default async function BaseCoursePage({ params }: BaseCoursePageProps) {
           isReadOnly={(course.program as { approval_status?: string })?.approval_status === "approved"}
         />
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

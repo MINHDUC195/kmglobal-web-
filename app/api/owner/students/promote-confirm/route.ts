@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
   const { error: updErr } = await admin
     .from("profiles")
-    .update({ role: "admin" })
+    .update({ role: "admin", student_hub_eligible: true })
     .eq("id", reqRow.candidate_user_id);
 
   if (updErr) {

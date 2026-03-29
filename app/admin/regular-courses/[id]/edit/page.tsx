@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AdminBreadcrumbStrip } from "../../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../../components/DashboardNav";
-import Footer from "../../../../../components/Footer";
 import { getSupabaseBrowserClient } from "../../../../../lib/supabase-browser";
 
 function toLocalDateTime(iso: string | null): string {
@@ -129,28 +127,20 @@ export default function EditRegularCoursePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-gray-400">Đang tải...</p>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
   if (error && !name) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-red-400">{error}</p>
           <Link href={programId ? `/admin/programs/${programId}` : "/admin/programs"} className="mt-4 inline-block text-[#D4AF37] hover:underline">
             ← Về chương trình
           </Link>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
@@ -167,8 +157,7 @@ export default function EditRegularCoursePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip items={editRegularBreadcrumb} />
 
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
@@ -296,8 +285,6 @@ export default function EditRegularCoursePage() {
           ← Về chi tiết khóa học
         </Link>
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

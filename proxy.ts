@@ -122,28 +122,45 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Bảo vệ route /student — Owner vào đúng trang dashboard học viên (/student) thì chuyển về Owner hub.
+  // /student — Owner không dùng khu học viên; Admin chỉ được nếu student_hub_eligible.
   if (pathname.startsWith("/student")) {
     if (!user) return redirectToLogin();
-    if (pathname === "/student" || pathname === "/student/") {
-      const { data: studentGateProfile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      if (studentGateProfile?.role === "owner") {
-        return NextResponse.redirect(new URL("/owner", request.url));
-      }
+    const { data: studentGateProfile } = await supabase
+      .from("profiles")
+      .select("role, student_hub_eligible")
+      .eq("id", user.id)
+      .single();
+    const sg = studentGateProfile as {
+      role?: string;
+      student_hub_eligible?: boolean | null;
+    } | null;
+    if (sg?.role === "owner") {
+      return NextResponse.redirect(new URL("/owner", request.url));
+    }
+    if (sg?.role === "admin" && !sg?.student_hub_eligible) {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+  }
+
+  // /checkout — chỉ học viên (student); admin/owner dùng quy trình khác.
+  if (pathname.startsWith("/checkout")) {
+    if (!user) return redirectToLogin();
+    const { data: coProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const cr = (coProfile as { role?: string } | null)?.role;
+    if (cr === "owner") {
+      return NextResponse.redirect(new URL("/owner", request.url));
+    }
+    if (cr === "admin") {
+      return NextResponse.redirect(new URL("/admin", request.url));
     }
   }
 
   // Bảo vệ route /learn
   if (pathname.startsWith("/learn")) {
-    if (!user) return redirectToLogin();
-  }
-
-  // Bảo vệ route /checkout
-  if (pathname.startsWith("/checkout")) {
     if (!user) return redirectToLogin();
   }
 
@@ -154,6 +171,7 @@ export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|logo|public|api|verify|terms-of-service|privacy-policy|auth).*)",
     "/api/student/enroll",
+    "/api/student/self-service-eligibility",
     "/api/checkout/init",
     "/api/learn/progress",
     "/api/pdf/watermark",

@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
-import DashboardNav from "../../../../components/DashboardNav";
-import Footer from "../../../../components/Footer";
 import { getSupabaseBrowserClient } from "../../../../lib/supabase-browser";
 
 type OptionRow = { id: string; text: string; isCorrect: boolean };
@@ -159,20 +157,14 @@ function EditQuestionContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-gray-400">Đang tải...</p>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
   if (error && !content) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-red-400">{error}</p>
           <Link
@@ -182,15 +174,10 @@ function EditQuestionContent() {
             ← {lessonId ? "Về soạn thảo bài học" : "Về thư viện"}
           </Link>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
-
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
         <Link
           href={lessonId ? `/admin/lessons/${lessonId}` : "/admin/question-library"}
@@ -382,9 +369,6 @@ function EditQuestionContent() {
           ← {lessonId ? "Về soạn thảo bài học" : "Về thư viện câu hỏi"}
         </Link>
       </main>
-
-      <Footer hideLogo />
-    </div>
   );
 }
 
@@ -392,7 +376,7 @@ export default function EditQuestionPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#0a1628] px-6 py-12 text-center text-gray-400">
+        <div className="px-6 py-12 text-center text-gray-400">
           Đang tải...
         </div>
       }

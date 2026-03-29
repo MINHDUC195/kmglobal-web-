@@ -5,8 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import BunnyVideoPlayer from "../../../../components/BunnyVideoPlayer";
 import { AdminBreadcrumbStrip } from "../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../components/DashboardNav";
-import Footer from "../../../../components/Footer";
 import PDFViewer from "../../../../components/PDFViewer";
 import { acquireLock, extendLock, releaseLock } from "../../../../lib/edit-lock";
 import { getSupabaseBrowserClient } from "../../../../lib/supabase-browser";
@@ -234,28 +232,20 @@ export default function EditLessonPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-gray-400">Đang tải...</p>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
   if (error && !name) {
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12">
           <p className="text-red-400">{error}</p>
           <Link href="/admin/programs" className="mt-4 inline-block text-[#D4AF37] hover:underline">
             ← Về danh sách
           </Link>
         </main>
-        <Footer hideLogo />
-      </div>
     );
   }
 
@@ -269,8 +259,7 @@ export default function EditLessonPage() {
       { label: name || "Bài học" },
     ];
     return (
-      <div className="min-h-screen bg-[#0a1628]">
-        <DashboardNav greeting="Admin" />
+      <>
         <AdminBreadcrumbStrip items={lessonBreadcrumbLocked} />
         <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-6">
@@ -288,8 +277,7 @@ export default function EditLessonPage() {
             </Link>
           </div>
         </main>
-        <Footer hideLogo />
-      </div>
+      </>
     );
   }
 
@@ -306,8 +294,7 @@ export default function EditLessonPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip items={lessonBreadcrumb} />
 
       <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
@@ -489,8 +476,6 @@ export default function EditLessonPage() {
           </Link>
         </div>
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

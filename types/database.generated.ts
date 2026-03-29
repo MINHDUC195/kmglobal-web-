@@ -1034,6 +1034,7 @@ export type Database = {
           security_signed: boolean | null
           self_temp_lock_until: string | null
           student_code: string | null
+          student_hub_eligible: boolean
         }
         Insert: {
           abuse_locked_at?: string | null
@@ -1065,6 +1066,7 @@ export type Database = {
           security_signed?: boolean | null
           self_temp_lock_until?: string | null
           student_code?: string | null
+          student_hub_eligible?: boolean
         }
         Update: {
           abuse_locked_at?: string | null
@@ -1096,6 +1098,7 @@ export type Database = {
           security_signed?: boolean | null
           self_temp_lock_until?: string | null
           student_code?: string | null
+          student_hub_eligible?: boolean
         }
         Relationships: []
       }

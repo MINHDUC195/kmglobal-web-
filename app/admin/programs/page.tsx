@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { AdminBreadcrumbStrip } from "../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../components/DashboardNav";
-import Footer from "../../../components/Footer";
 import ListPagination from "../../../components/ListPagination";
 import {
   clampPage,
@@ -39,8 +37,7 @@ export default async function AdminProgramsPage({
     .order("created_at", { ascending: false });
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip
         items={[
           { label: "Trang quản trị", href: "/admin" },
@@ -72,8 +69,6 @@ export default async function AdminProgramsPage({
           />
         </div>
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

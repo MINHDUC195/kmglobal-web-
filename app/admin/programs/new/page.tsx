@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AdminBreadcrumbStrip } from "../../../../components/AdminHierarchyBreadcrumb";
-import DashboardNav from "../../../../components/DashboardNav";
-import Footer from "../../../../components/Footer";
 import { getSupabaseBrowserClient } from "../../../../lib/supabase-browser";
 
 export default function NewProgramPage() {
@@ -44,8 +42,7 @@ export default function NewProgramPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1628]">
-      <DashboardNav greeting="Admin" />
+    <>
       <AdminBreadcrumbStrip
         items={[
           { label: "Chương trình", href: "/admin/programs" },
@@ -116,8 +113,6 @@ export default function NewProgramPage() {
           </div>
         </form>
       </main>
-
-      <Footer hideLogo />
-    </div>
+    </>
   );
 }

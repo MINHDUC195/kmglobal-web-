@@ -5,6 +5,10 @@ import { getSupabaseAdminClient } from "../../../lib/supabase-admin";
 import { getCourseDisplayStatus } from "../../../lib/course-status";
 import { daysUntil } from "../../../lib/course-lifecycle";
 import { formatPriceDisplay } from "../../../lib/course-price";
+import {
+  isRoleBlockedFromSelfServiceEnrollment,
+  SELF_SERVICE_ENROLLMENT_FORBIDDEN,
+} from "../../../lib/self-service-enrollment";
 import NavLogoWithBanner from "../../../components/NavLogoWithBanner";
 import CourseDetailModal from "./CourseDetailModal";
 import EnrollButton from "../../../components/EnrollButton";
@@ -80,6 +84,16 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
   }
 
   const { data: { user } } = await supabase.auth.getUser();
+  let userRole: string | undefined;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    userRole = (profile as { role?: string } | null)?.role;
+  }
+
   let isAdminOrOwnerView = false;
   let userEnrollmentId: string | null = null;
   let enrollmentHasCertificate = false;
@@ -88,16 +102,9 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
   let paidCount = 0;
 
   if (user && programId) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    const role = (profile as { role?: string } | null)?.role;
-
-    if (role === "owner") {
+    if (userRole === "owner") {
       isAdminOrOwnerView = true;
-    } else if (role === "admin") {
+    } else if (userRole === "admin") {
       const { data: aep } = await admin
         .from("admin_editable_programs")
         .select("user_id")
@@ -192,7 +199,12 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
     course.registration_close_at,
     course.course_end_at
   );
-  const canEnroll = status === "đang mở đăng ký" && !isAdminOrOwnerView && !userEnrollmentId;
+  const roleBlockedSelfService = isRoleBlockedFromSelfServiceEnrollment(userRole);
+  const canEnroll =
+    status === "đang mở đăng ký" &&
+    !isAdminOrOwnerView &&
+    !userEnrollmentId &&
+    !roleBlockedSelfService;
 
   return (
     <div className="min-h-screen bg-[#0a1628]">
@@ -323,6 +335,11 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
             >
               Đăng ký ngay
             </EnrollButton>
+          ) : roleBlockedSelfService &&
+            status === "đang mở đăng ký" &&
+            !userEnrollmentId &&
+            !isAdminOrOwnerView ? (
+            <p className="max-w-xl text-sm text-amber-200/90">{SELF_SERVICE_ENROLLMENT_FORBIDDEN}</p>
           ) : userEnrollmentId ? (
             <div className="flex w-full max-w-3xl flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
