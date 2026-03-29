@@ -61,7 +61,12 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
   const [cloneName, setCloneName] = useState("");
   const [clonePriceCents, setClonePriceCents] = useState("");
   const [cloneDiscountPercent, setCloneDiscountPercent] = useState("");
-  const [clonePromotionTiersJson, setClonePromotionTiersJson] = useState("");
+  /** Đợt có giới hạn suất: số suất + % giảm */
+  const [cloneTierCappedRows, setCloneTierCappedRows] = useState<{ slots: string; discount: string }[]>([
+    { slots: "", discount: "" },
+  ]);
+  /** Đợt cuối slots = null */
+  const [cloneTierTailDiscount, setCloneTierTailDiscount] = useState("");
 
   async function handleAddChapter(e: FormEvent) {
     e.preventDefault();
@@ -162,9 +167,50 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
     setCloneName(`${course.name} (Khóa mới)`);
     setClonePriceCents("");
     setCloneDiscountPercent("");
-    setClonePromotionTiersJson("");
+    setCloneTierCappedRows([{ slots: "", discount: "" }]);
+    setCloneTierTailDiscount("");
     setCloneModal(true);
     setError("");
+  }
+
+  function buildPromotionTiersFromCloneForm(): object | null {
+    const anyCapped = cloneTierCappedRows.some((r) => r.slots.trim() !== "" || r.discount.trim() !== "");
+    const tailTrim = cloneTierTailDiscount.trim();
+    if (!anyCapped && !tailTrim) return null;
+
+    const tailD = tailTrim ? Math.round(parseFloat(cloneTierTailDiscount)) : NaN;
+    if (!Number.isFinite(tailD) || tailD < 1 || tailD > 99) {
+      throw new Error("Đợt không giới hạn suất: nhập % giảm giá từ 1–99.");
+    }
+
+    const capped: { slots: number; discount_percent: number }[] = [];
+    for (const r of cloneTierCappedRows) {
+      const sTrim = r.slots.trim();
+      const dTrim = r.discount.trim();
+      if (!sTrim && !dTrim) continue;
+      if (!sTrim || !dTrim) {
+        throw new Error("Mỗi đợt có giới hạn cần đủ số suất và % giảm giá (hoặc xóa trống cả hai).");
+      }
+      const slots = Math.round(parseFloat(sTrim));
+      const d = Math.round(parseFloat(dTrim));
+      if (!Number.isFinite(slots) || slots < 1 || !Number.isInteger(slots)) {
+        throw new Error("Số suất mỗi đợt phải là số nguyên ≥ 1.");
+      }
+      if (!Number.isFinite(d) || d < 1 || d > 99) {
+        throw new Error("% giảm giá mỗi đợt phải từ 1–99.");
+      }
+      capped.push({ slots, discount_percent: d });
+    }
+
+    if (capped.length < 1) {
+      throw new Error("Cần ít nhất một đợt có giới hạn suất (số suất + % giảm).");
+    }
+
+    const parsed: unknown = [...capped.map((c) => ({ slots: c.slots, discount_percent: c.discount_percent })), { slots: null, discount_percent: tailD }];
+    if (!parsePromotionTiers(parsed)) {
+      throw new Error("Cấu hình đợt ưu đãi không hợp lệ.");
+    }
+    return parsed as object;
   }
 
   async function handleCloneToRegular(e: FormEvent) {
@@ -182,22 +228,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
         : null;
       if (discountVal !== null && (discountVal < 1 || discountVal > 99)) throw new Error("Giảm giá phải từ 1-99%");
 
-      const tiersTrim = clonePromotionTiersJson.trim();
-      let promotion_tiers: object | null = null;
-      if (tiersTrim) {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(tiersTrim) as unknown;
-        } catch {
-          throw new Error("Ưu đãi theo suất: JSON không hợp lệ");
-        }
-        if (!parsePromotionTiers(parsed)) {
-          throw new Error(
-            "Ưu đãi theo suất: cần ≥2 phần tử, các đợt trước có slots nguyên ≥1, phần tử cuối có \"slots\": null và discount 1–99%."
-          );
-        }
-        promotion_tiers = parsed as object;
-      }
+      const promotion_tiers = buildPromotionTiersFromCloneForm();
 
       const { data: regularCourse, error: err } = await supabase
         .from("regular_courses")
@@ -585,25 +616,96 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Dùng khi <strong className="font-medium text-gray-400">không</strong> cấu hình ưu đãi theo suất bên dưới. 1–99%. Sau khi tạo, % này được{" "}
-                  <strong className="font-medium text-gray-400">khóa</strong> — không sửa trên màn chỉnh sửa (tránh lệch giá thanh toán). Có thể chỉnh JSON đợt ưu đãi sau.
+                  <strong className="font-medium text-gray-400">khóa</strong> — không sửa trên màn chỉnh sửa (tránh lệch giá thanh toán). Có thể chỉnh ưu đãi theo suất sau trên màn sửa khóa.
                 </p>
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-white/90">
-                  Ưu đãi theo suất (JSON, tùy chọn)
+              <div className="rounded-lg border border-white/10 bg-[#0b1323]/50 p-3">
+                <label className="mb-2 block text-sm font-medium text-white/90">
+                  Ưu đãi theo suất (tùy chọn)
                 </label>
-                <textarea
-                  value={clonePromotionTiersJson}
-                  onChange={(e) => setClonePromotionTiersJson(e.target.value)}
-                  rows={6}
-                  spellCheck={false}
-                  placeholder={`[\n  { "slots": 50, "discount_percent": 50 },\n  { "slots": 20, "discount_percent": 30 },\n  { "slots": null, "discount_percent": 20 }\n]`}
-                  className="w-full rounded-lg border border-white/15 bg-[#0b1323] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#D4AF37] sm:text-sm"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Để trống = chỉ dùng % cố định ở trên. Khi JSON hợp lệ, giá bán theo từng đợt (bỏ qua % cố định). Phần tử cuối phải có{" "}
-                  <code className="text-gray-400">slots: null</code> (đợt không giới hạn suất). Có thể sửa lại JSON trên màn chỉnh sửa khóa học thường sau.
+                <p className="mb-3 text-xs text-gray-500">
+                  Để trống toàn bộ = chỉ dùng % cố định ở trên. Nếu điền: thêm từng đợt có giới hạn suất, rồi một mức % cho đợt không giới hạn suất (sau các đợt trước).
                 </p>
+                <div className="space-y-3">
+                  {cloneTierCappedRows.map((row, idx) => (
+                    <div
+                      key={idx}
+                      className="flex flex-wrap items-end gap-2 rounded-lg border border-white/10 bg-[#0a1628] p-2"
+                    >
+                      <div className="min-w-[7rem] flex-1">
+                        <span className="mb-0.5 block text-[11px] text-gray-500">Đợt {idx + 1} · Số suất</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={row.slots}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setCloneTierCappedRows((prev) =>
+                              prev.map((r, i) => (i === idx ? { ...r, slots: v } : r))
+                            );
+                          }}
+                          placeholder="VD: 50"
+                          className="w-full rounded-md border border-white/15 bg-[#0b1323] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]"
+                        />
+                      </div>
+                      <div className="min-w-[7rem] flex-1">
+                        <span className="mb-0.5 block text-[11px] text-gray-500">Giảm giá (%)</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={row.discount}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setCloneTierCappedRows((prev) =>
+                              prev.map((r, i) => (i === idx ? { ...r, discount: v } : r))
+                            );
+                          }}
+                          placeholder="VD: 30"
+                          className="w-full rounded-md border border-white/15 bg-[#0b1323] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]"
+                        />
+                      </div>
+                      {cloneTierCappedRows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCloneTierCappedRows((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="shrink-0 rounded-md border border-red-500/40 px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+                        >
+                          Xóa đợt
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCloneTierCappedRows((prev) => [...prev, { slots: "", discount: "" }])
+                    }
+                    className="text-xs font-medium text-[#D4AF37] hover:underline"
+                  >
+                    + Thêm đợt có giới hạn suất
+                  </button>
+                  <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2">
+                    <span className="mb-0.5 block text-[11px] font-medium text-amber-200/90">
+                      Đợt cuối — không giới hạn suất
+                    </span>
+                    <div className="max-w-[10rem]">
+                      <span className="mb-0.5 block text-[11px] text-gray-500">Giảm giá (%)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={cloneTierTailDiscount}
+                        onChange={(e) => setCloneTierTailDiscount(e.target.value)}
+                        placeholder="VD: 20"
+                        className="w-full rounded-md border border-white/15 bg-[#0b1323] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             {error && (
@@ -615,7 +717,8 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
               <button
                 type="button"
                 onClick={() => {
-                  setClonePromotionTiersJson("");
+                  setCloneTierCappedRows([{ slots: "", discount: "" }]);
+                  setCloneTierTailDiscount("");
                   setCloneModal(false);
                 }}
                 className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/5"
