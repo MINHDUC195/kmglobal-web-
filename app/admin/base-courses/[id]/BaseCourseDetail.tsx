@@ -206,6 +206,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
           program_id: programId,
           name: cloneName.trim() || `${course.name} (Khóa mới)`,
           status: "draft",
+          approval_status: "pending",
           price_cents: priceVal,
           discount_percent: discountVal,
           discount_percent_locked: true,
@@ -543,6 +544,10 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
             <h3 className="text-lg font-semibold text-[#D4AF37]">Nhân bản khóa học thường</h3>
             <p className="mt-2 text-sm text-gray-400">
               Tạo phiên khóa học mới từ <strong className="text-white">{course.name}</strong>
+            </p>
+            <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/95">
+              Khóa tạo ra sẽ ở trạng thái <strong className="font-semibold">chờ Owner phê duyệt</strong> — chưa hiển thị trên
+              trang chủ/catalog cho đến khi Owner duyệt tại mục &quot;Phê duyệt khóa học thường&quot;.
             </p>
             <div className="mt-4 space-y-4">
               <div>

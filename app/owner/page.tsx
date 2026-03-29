@@ -22,6 +22,12 @@ const modules = [
     icon: "📚",
   },
   {
+    title: "Phê duyệt khóa học thường",
+    desc: "Khóa nhân bản chờ duyệt trước khi hiển thị cho học viên",
+    href: "/owner/regular-courses",
+    icon: "📋",
+  },
+  {
     title: "Phê duyệt xóa khóa",
     desc: "Duyệt yêu cầu xóa khóa học thường từ Admin (chưa có học viên)",
     href: "/owner/course-deletions",

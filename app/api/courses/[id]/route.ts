@@ -46,6 +46,7 @@ export async function GET(
         "id, name, price_cents, discount_percent, promotion_tiers, active_enrollment_count, registration_open_at, registration_close_at"
       )
       .eq("id", id)
+      .eq("approval_status", "approved")
       .single();
 
     if (error || !course) {

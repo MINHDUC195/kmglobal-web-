@@ -1281,6 +1281,7 @@ export type Database = {
       regular_courses: {
         Row: {
           active_enrollment_count: number
+          approval_status: string
           base_course_id: string | null
           course_end_at: string | null
           course_start_at: string | null
@@ -1299,6 +1300,7 @@ export type Database = {
         }
         Insert: {
           active_enrollment_count?: number
+          approval_status?: string
           base_course_id?: string | null
           course_end_at?: string | null
           course_start_at?: string | null
@@ -1317,6 +1319,7 @@ export type Database = {
         }
         Update: {
           active_enrollment_count?: number
+          approval_status?: string
           base_course_id?: string | null
           course_end_at?: string | null
           course_start_at?: string | null

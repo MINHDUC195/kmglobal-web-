@@ -86,13 +86,21 @@ export async function POST(request: NextRequest) {
     const { data: course, error: cErr } = await admin
       .from("regular_courses")
       .select(
-        "id, name, base_course_id, registration_open_at, registration_close_at, course_end_at, price_cents, discount_percent, promotion_tiers, active_enrollment_count"
+        "id, name, base_course_id, registration_open_at, registration_close_at, course_end_at, price_cents, discount_percent, promotion_tiers, active_enrollment_count, approval_status"
       )
       .eq("id", courseId)
       .single();
 
     if (cErr || !course) {
       return NextResponse.json({ error: "Khóa học không tồn tại" }, { status: 404 });
+    }
+
+    const approval = (course as { approval_status?: string }).approval_status;
+    if (approval !== "approved") {
+      return NextResponse.json(
+        { error: "Khóa học chưa được phê duyệt hiển thị hoặc không khả dụng." },
+        { status: 403 }
+      );
     }
 
     const { data: existingRow } = await admin

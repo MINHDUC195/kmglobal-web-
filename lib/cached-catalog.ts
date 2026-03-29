@@ -23,6 +23,7 @@ type CatalogRegularCourseRow = {
   discount_percent?: number | null;
   promotion_tiers?: unknown;
   active_enrollment_count?: number;
+  approval_status?: string | null;
   registration_open_at: string | null;
   registration_close_at: string | null;
   course_start_at: string | null;
@@ -67,6 +68,7 @@ async function fetchRegularCoursesCatalog(): Promise<CatalogRegularCourseRow[]> 
       discount_percent,
       promotion_tiers,
       active_enrollment_count,
+      approval_status,
       registration_open_at,
       registration_close_at,
       course_start_at,
@@ -76,6 +78,7 @@ async function fetchRegularCoursesCatalog(): Promise<CatalogRegularCourseRow[]> 
       program:programs(id, name, code)
     `
     )
+    .eq("approval_status", "approved")
     .order("created_at", { ascending: false });
   return (data ?? []) as unknown as CatalogRegularCourseRow[];
 }
@@ -90,6 +93,6 @@ export const getCachedApprovedPrograms = unstable_cache(
 /** All regular courses with program/base joins (landing, /courses, program courses). */
 export const getCachedRegularCoursesCatalog = unstable_cache(
   fetchRegularCoursesCatalog,
-  ["catalog-regular-courses-v2"],
+  ["catalog-regular-courses-v3"],
   { revalidate: REVALIDATE_SEC, tags: ["catalog"] }
 );

@@ -43,6 +43,7 @@ export default async function CourseDetailPage({ params }: CourseDetailProps) {
       base_course:base_courses(id, name, code, summary, objectives, program_id)
     `)
     .eq("id", id)
+    .eq("approval_status", "approved")
     .single();
 
   if (error || !course) notFound();

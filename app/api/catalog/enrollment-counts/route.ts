@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
   const { data, error } = await admin
     .from("regular_courses")
     .select("id, active_enrollment_count")
-    .in("id", ids);
+    .in("id", ids)
+    .eq("approval_status", "approved");
 
   if (error) {
     console.error("enrollment-counts:", error.message);

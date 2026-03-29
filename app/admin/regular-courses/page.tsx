@@ -7,6 +7,7 @@ import { AdminBreadcrumbStrip } from "../../../components/AdminHierarchyBreadcru
 type CourseRow = {
   id: string;
   name: string;
+  approval_status?: string | null;
   displayStatus: string;
   enrollmentCount: number;
   learningOpen: boolean;
@@ -142,6 +143,10 @@ export default function AdminRegularCoursesPage() {
           Khóa học thường (mở đăng ký / học)
         </h1>
         <p className="mt-2 max-w-3xl text-gray-400">
+          Cột <span className="text-gray-300">Hiển thị</span>: chỉ khóa <strong className="text-gray-300">đã phê duyệt</strong> mới
+          lên catalog công khai; khóa nhân bản chờ Owner tại &quot;Phê duyệt khóa học thường&quot;.
+        </p>
+        <p className="mt-2 max-w-3xl text-gray-400">
           Danh sách các phiên khóa học thường (regular_courses). Admin/Owner có thể đề nghị xóa khi chưa có học viên đăng ký.
           Owner đề nghị sẽ được phê duyệt và xóa ngay; Admin đề nghị chờ Owner phê duyệt tại &quot;Phê duyệt xóa khóa&quot;.
         </p>
@@ -196,7 +201,7 @@ export default function AdminRegularCoursesPage() {
                 <tbody>
                   {courses.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                         Không có khóa học nào khớp bộ lọc.
                       </td>
                     </tr>
@@ -214,6 +219,23 @@ export default function AdminRegularCoursesPage() {
                         <td className="px-4 py-3 text-gray-400">
                           <div>{c.program?.name ?? "—"}</div>
                           <div className="text-xs text-gray-500">{c.base_course?.name ?? "—"}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-xs ${
+                              (c.approval_status ?? "") === "approved"
+                                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                                : (c.approval_status ?? "") === "pending"
+                                  ? "border-amber-500/40 bg-amber-500/15 text-amber-200"
+                                  : "border-white/15 text-gray-400"
+                            }`}
+                          >
+                            {(c.approval_status ?? "pending") === "approved"
+                              ? "Đã duyệt"
+                              : (c.approval_status ?? "") === "pending"
+                                ? "Chờ Owner"
+                                : "Nháp"}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <span className="rounded-full border border-white/15 px-2 py-0.5 text-xs text-gray-300">
