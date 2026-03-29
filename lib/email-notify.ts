@@ -55,6 +55,33 @@ export function cancelWarningEmailHtml(
   `;
 }
 
+export function adminPromotionConfirmEmailHtml(opts: {
+  ownerName: string | null;
+  candidateName: string | null;
+  candidateEmail: string | null;
+  confirmUrl: string;
+  expiresSummary: string;
+}): string {
+  const who = escapeHtml(opts.candidateName || opts.candidateEmail || "học viên");
+  const mail = opts.candidateEmail ? escapeHtml(opts.candidateEmail) : "—";
+  return `
+  <p>Xin chào ${escapeHtml(opts.ownerName || "Owner")},</p>
+  <p>Bạn vừa yêu cầu nâng tài khoản sau lên <strong>Admin</strong>:</p>
+  <ul>
+    <li>Họ tên: <strong>${who}</strong></li>
+    <li>Email: ${mail}</li>
+  </ul>
+  <p>Nếu đúng ý bạn, hãy bấm nút bên dưới (đăng nhập cùng tài khoản Owner). Liên kết chỉ dùng một lần và hết hạn sau <strong>${escapeHtml(opts.expiresSummary)}</strong>.</p>
+  <p style="margin:24px 0">
+    <a href="${escapeHtml(opts.confirmUrl)}" style="display:inline-block;padding:12px 20px;background:#002b2d;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
+      Xác nhận nâng lên Admin
+    </a>
+  </p>
+  <p style="font-size:13px;color:#555">Nếu bạn không gửi yêu cầu này, bỏ qua email và đổi mật khẩu tài khoản Owner.</p>
+  <p>Trân trọng,<br/>KM Global Academy</p>
+  `;
+}
+
 export function tempLockEmailHtml(fullName: string | null, untilIso: string): string {
   return `
   <p>Xin chào ${fullName ?? "học viên"},</p>

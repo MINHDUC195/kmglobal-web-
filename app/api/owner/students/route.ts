@@ -14,6 +14,12 @@ import {
   totalPagesFromCount,
 } from "../../../../lib/list-pagination";
 import { validateOrigin } from "../../../../lib/csrf";
+import {
+  ADMIN_PROMOTION_TOKEN_TTL_HOURS,
+  generateAdminPromotionToken,
+  hashAdminPromotionToken,
+} from "../../../../lib/admin-promotion-token";
+import { adminPromotionConfirmEmailHtml, sendKmgEmail } from "../../../../lib/email-notify";
 
 async function ensureOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -183,9 +189,30 @@ export async function GET(request: NextRequest) {
   });
 }
 
+function publicSiteOrigin(): string {
+  const raw =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+}
+
+function maskEmailForUi(email: string): string {
+  const at = email.indexOf("@");
+  if (at < 1) return "***";
+  const u = email.slice(0, at);
+  const d = email.slice(at + 1);
+  if (u.length <= 2) return `**@${d}`;
+  return `${u.slice(0, 2)}***@${d}`;
+}
+
 /**
  * PATCH /api/owner/students
- * Body: { userId: string, action: "promote_to_admin" } — Owner phê duyệt nâng học viên lên admin.
+ * Body: { userId: string, action: "promote_to_admin" } — Gửi email có liên kết xác nhận (token một lần).
  */
 export async function PATCH(request: NextRequest) {
   if (!validateOrigin(request)) {
@@ -213,10 +240,17 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Thiếu userId" }, { status: 400 });
   }
 
+  const {
+    data: { user: ownerUser },
+  } = await supabase.auth.getUser();
+  if (!ownerUser?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const admin = getSupabaseAdminClient();
   const { data: profile, error: fetchErr } = await admin
     .from("profiles")
-    .select("id, role")
+    .select("id, role, full_name, email")
     .eq("id", userId)
     .single();
 
@@ -232,28 +266,84 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Người này đã là admin" }, { status: 400 });
   }
 
-  const { error: updErr } = await admin
+  const { data: ownerProfile } = await admin
     .from("profiles")
-    .update({ role: "admin", updated_at: new Date().toISOString() })
-    .eq("id", userId);
+    .select("full_name, email")
+    .eq("id", ownerUser.id)
+    .maybeSingle();
 
-  if (updErr) {
-    return NextResponse.json({ error: updErr.message }, { status: 500 });
+  const ownerEmail =
+    (ownerProfile as { email?: string | null } | null)?.email?.trim() ||
+    ownerUser.email?.trim() ||
+    "";
+  if (!ownerEmail) {
+    return NextResponse.json(
+      { error: "Tài khoản Owner chưa có email — không thể gửi liên kết xác nhận." },
+      { status: 400 }
+    );
   }
 
-  const {
-    data: { user: ownerUser },
-  } = await supabase.auth.getUser();
-  if (ownerUser?.id) {
-    await logAuditEvent({
-      actorId: ownerUser.id,
-      action: "owner.student.promote_to_admin",
-      resourceType: "profile",
-      resourceId: userId,
-    });
+  const rawToken = generateAdminPromotionToken();
+  const tokenHash = hashAdminPromotionToken(rawToken);
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + ADMIN_PROMOTION_TOKEN_TTL_HOURS);
+
+  await admin
+    .from("admin_promotion_requests")
+    .delete()
+    .eq("candidate_user_id", userId)
+    .eq("requested_by", ownerUser.id)
+    .is("consumed_at", null);
+
+  const { error: insErr } = await admin.from("admin_promotion_requests").insert({
+    candidate_user_id: userId,
+    requested_by: ownerUser.id,
+    token_hash: tokenHash,
+    expires_at: expiresAt.toISOString(),
+  });
+
+  if (insErr) {
+    console.error("[promote_to_admin] insert request failed:", insErr);
+    return NextResponse.json({ error: insErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  const confirmPath = `/owner/confirm-admin-promotion?token=${encodeURIComponent(rawToken)}`;
+  const confirmUrl = `${publicSiteOrigin()}${confirmPath}`;
+
+  const cand = profile as { full_name?: string | null; email?: string | null };
+  const { sent } = await sendKmgEmail({
+    to: ownerEmail,
+    subject: "[KM Global] Xác nhận nâng học viên lên Admin",
+    html: adminPromotionConfirmEmailHtml({
+      ownerName: (ownerProfile as { full_name?: string | null } | null)?.full_name ?? null,
+      candidateName: cand.full_name ?? null,
+      candidateEmail: cand.email ?? null,
+      confirmUrl,
+      expiresSummary: `${ADMIN_PROMOTION_TOKEN_TTL_HOURS} giờ`,
+    }),
+  });
+
+  if (!sent) {
+    console.info("[promote_to_admin] email not sent; confirm URL (dev):", confirmUrl);
+  }
+
+  await logAuditEvent({
+    actorId: ownerUser.id,
+    action: "owner.student.promote_to_admin_requested",
+    resourceType: "profile",
+    resourceId: userId,
+    metadata: { email_sent: sent, expires_at: expiresAt.toISOString() },
+  });
+
+  return NextResponse.json({
+    success: true,
+    pendingConfirmation: true,
+    emailSent: sent,
+    emailMasked: maskEmailForUi(ownerEmail),
+    message: sent
+      ? `Đã gửi liên kết xác nhận tới ${maskEmailForUi(ownerEmail)}. Mở email và bấm liên kết (hết hạn sau ${ADMIN_PROMOTION_TOKEN_TTL_HOURS} giờ).`
+      : "Không gửi được email (kiểm tra RESEND_API_KEY). Yêu cầu đã được lưu — xem log server để lấy URL xác nhận khi chạy local.",
+  });
 }
 
 /**
