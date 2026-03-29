@@ -49,6 +49,8 @@ export default function EditRegularCoursePage() {
   const [baseCourseName, setBaseCourseName] = useState("");
   const [discountPercentLocked, setDiscountPercentLocked] = useState(false);
   const [promotionTiersJson, setPromotionTiersJson] = useState("");
+  /** Giống modal nhân bản: chỉ hiển thị một nhóm — % cố định hoặc JSON ưu đãi theo suất */
+  const [pricingMode, setPricingMode] = useState<"flat" | "tiers">("flat");
 
   useEffect(() => {
     async function load() {
@@ -84,6 +86,7 @@ export default function EditRegularCoursePage() {
       setDiscountPercentLocked(locked);
       const pt = (data as { promotion_tiers?: unknown }).promotion_tiers;
       setPromotionTiersJson(pt != null ? JSON.stringify(pt, null, 2) : "");
+      setPricingMode(parsePromotionTiers(pt) != null ? "tiers" : "flat");
     }
     void load().finally(() => setLoading(false));
   }, [id, supabase]);
@@ -98,11 +101,6 @@ export default function EditRegularCoursePage() {
       const discountVal = discountPercent.trim()
         ? Math.min(99, Math.max(0, Math.round(parseFloat(discountPercent))))
         : null;
-      if (!discountPercentLocked) {
-        if (discountVal !== null && (discountVal < 0 || discountVal > 99)) {
-          throw new Error("Giảm giá phải từ 0–99%");
-        }
-      }
 
       const patch: Record<string, unknown> = {
         name: name.trim(),
@@ -113,12 +111,20 @@ export default function EditRegularCoursePage() {
         course_end_at: fromLocalDateTime(courseEndAt),
         updated_at: new Date().toISOString(),
       };
-      if (!discountPercentLocked) {
-        patch.discount_percent = discountVal;
-      }
 
-      const tiersTrim = promotionTiersJson.trim();
-      if (tiersTrim) {
+      if (pricingMode === "flat") {
+        if (!discountPercentLocked) {
+          if (discountVal !== null && (discountVal < 0 || discountVal > 99)) {
+            throw new Error("Giảm giá phải từ 0–99%");
+          }
+          patch.discount_percent = discountVal;
+        }
+        patch.promotion_tiers = null;
+      } else {
+        const tiersTrim = promotionTiersJson.trim();
+        if (!tiersTrim) {
+          throw new Error('Ưu đãi theo suất: nhập JSON hợp lệ hoặc chọn lại "Giảm giá cố định (%)".');
+        }
         let parsed: unknown;
         try {
           parsed = JSON.parse(tiersTrim) as unknown;
@@ -131,8 +137,9 @@ export default function EditRegularCoursePage() {
           );
         }
         patch.promotion_tiers = parsed as object;
-      } else {
-        patch.promotion_tiers = null;
+        if (!discountPercentLocked) {
+          patch.discount_percent = null;
+        }
       }
 
       const { error: err } = await supabase.from("regular_courses").update(patch).eq("id", id);
@@ -214,46 +221,70 @@ export default function EditRegularCoursePage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">Giảm giá (%)</label>
-            <input
-              type="number"
-              min="0"
-              max="99"
-              step="1"
-              value={discountPercent}
-              onChange={(e) => setDiscountPercent(e.target.value)}
-              placeholder="VD: 10 (để trống = không giảm)"
-              disabled={discountPercentLocked}
-              className={`w-full rounded-xl border border-white/15 px-4 py-3 text-white outline-none focus:border-[#D4AF37] ${
-                discountPercentLocked
-                  ? "cursor-not-allowed bg-[#0b1323]/60 text-gray-400"
-                  : "bg-[#0b1323]"
-              }`}
-            />
+            <label className="mb-1 block text-sm font-medium text-white/90">Cách áp dụng giá / ưu đãi</label>
+            <select
+              value={pricingMode}
+              onChange={(e) => setPricingMode(e.target.value as "flat" | "tiers")}
+              className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 text-white outline-none focus:border-[#D4AF37]"
+            >
+              <option value="flat">Giảm giá cố định (%)</option>
+              <option value="tiers">Ưu đãi theo suất</option>
+            </select>
             <p className="mt-1 text-xs text-gray-500">
-              {discountPercentLocked
-                ? "Giảm giá đã cố định khi tạo khóa từ nhân bản. Không chỉnh sau để tránh lệch giá thanh toán hoặc nhiều yêu cầu thanh toán cho cùng học viên."
-                : "0–99%. Để trống nếu không giảm giá."}
+              Chọn một: hoặc một mức % cố định, hoặc các đợt theo số suất (JSON; đợt cuối không giới hạn suất). Khi lưu, chỉ cách bạn chọn được giữ — cách kia sẽ được gỡ (JSON xóa hoặc % cố định không còn dùng khi có JSON).
             </p>
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">
-              Ưu đãi theo suất (JSON, tùy chọn)
-            </label>
-            <textarea
-              value={promotionTiersJson}
-              onChange={(e) => setPromotionTiersJson(e.target.value)}
-              rows={8}
-              spellCheck={false}
-              placeholder={`[\n  { "slots": 50, "discount_percent": 50 },\n  { "slots": 20, "discount_percent": 30 },\n  { "slots": null, "discount_percent": 20 }\n]`}
-              className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 font-mono text-sm text-white outline-none focus:border-[#D4AF37]"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Để trống = chỉ dùng % giảm cố định ở trên. Khi có JSON hợp lệ, giá bán chỉ theo các đợt (bỏ qua % cố định).
-              Phần tử cuối phải có <code className="text-gray-400">slots: null</code> (đợt không giới hạn suất).
-            </p>
-          </div>
+          {pricingMode === "flat" ? (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-white/90">Giảm giá cố định (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="99"
+                step="1"
+                value={discountPercent}
+                onChange={(e) => setDiscountPercent(e.target.value)}
+                placeholder="VD: 10 (để trống = không giảm)"
+                disabled={discountPercentLocked}
+                className={`w-full rounded-xl border border-white/15 px-4 py-3 text-white outline-none focus:border-[#D4AF37] ${
+                  discountPercentLocked
+                    ? "cursor-not-allowed bg-[#0b1323]/60 text-gray-400"
+                    : "bg-[#0b1323]"
+                }`}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {discountPercentLocked
+                  ? "Giảm giá đã cố định khi tạo khóa từ nhân bản. Không chỉnh sau để tránh lệch giá thanh toán hoặc nhiều yêu cầu thanh toán cho cùng học viên."
+                  : "0–99%. Để trống nếu không giảm giá."}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-[#0b1323]/50 p-4">
+              <label className="mb-2 block text-sm font-medium text-white/90">Ưu đãi theo suất (JSON)</label>
+              <p className="mb-3 text-xs text-gray-500">
+                Các đợt có giới hạn suất, rồi một phần tử cuối với <code className="text-gray-400">slots: null</code> (không giới hạn suất).{" "}
+                <code className="text-gray-400">discount_percent</code> mỗi đợt: số nguyên 0–99 (đợt cuối có thể 0% = giá gốc sau các đợt có suất).
+              </p>
+              <textarea
+                value={promotionTiersJson}
+                onChange={(e) => setPromotionTiersJson(e.target.value)}
+                rows={8}
+                spellCheck={false}
+                placeholder={`[\n  { "slots": 50, "discount_percent": 50 },\n  { "slots": 20, "discount_percent": 30 },\n  { "slots": null, "discount_percent": 0 }\n]`}
+                className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 font-mono text-sm text-white outline-none focus:border-[#D4AF37]"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                Khi lưu với chế độ này, giá bán chỉ theo các đợt. Nếu % cố định chưa bị khóa, hệ thống sẽ đặt lại thành không dùng (null).
+                {discountPercentLocked ? (
+                  <>
+                    {" "}
+                    Nếu % cố định đã khóa từ lúc tạo khóa, cột trong CSDL có thể còn giá trị cũ nhưng không ảnh hưởng giá khi JSON hợp lệ.
+                  </>
+                ) : null}
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-white/90">Mở đăng ký</label>
