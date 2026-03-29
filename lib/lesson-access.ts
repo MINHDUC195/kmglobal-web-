@@ -64,7 +64,8 @@ export async function getLessonWithAccess(
   const role = (profile as { role?: string } | null)?.role;
   const isStaff = role === "owner" || role === "admin";
 
-  if (isStaff) {
+  /** Owner/admin xem bài không ngữ cảnh học viên: không gắn enrollment (breadcrumb tối giản). */
+  if (isStaff && !enrollmentIdParam) {
     return {
       ok: true,
       lesson: lesson as LessonRecord,
@@ -126,32 +127,43 @@ export async function getLessonWithAccess(
   const enrollment = enrollments[0];
 
   if (!enrollment) {
+    if (isStaff) {
+      return {
+        ok: true,
+        lesson: lesson as LessonRecord,
+        baseCourseId,
+        isStaff: true,
+        enrollment: null,
+      };
+    }
     return { ok: false, status: 403, message: "Bạn chưa đăng ký khóa học này" };
   }
 
-  const { isPaid } = await resolveEnrollmentPaymentAccess(admin, {
-    payment_id: enrollment.payment_id,
-    regular_course:
-      (enrollment as { regular_course?: { price_cents?: number | null; discount_percent?: number | null } | null })
-        .regular_course ?? null,
-  });
+  if (!isStaff) {
+    const { isPaid } = await resolveEnrollmentPaymentAccess(admin, {
+      payment_id: enrollment.payment_id,
+      regular_course:
+        (enrollment as { regular_course?: { price_cents?: number | null; discount_percent?: number | null } | null })
+          .regular_course ?? null,
+    });
 
-  if (!isPaid) {
-    const { data: firstChapter } = await admin
-      .from("chapters")
-      .select("id")
-      .eq("base_course_id", baseCourseId)
-      .order("sort_order", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    // Chương 1 (index 0) học thử; từ chương 2 trở đi cần thanh toán (khóa trả phí).
-    if (firstChapter && firstChapter.id !== lesson.chapter_id) {
-      return {
-        ok: false,
-        status: 403,
-        message:
-          "Bạn cần thanh toán để truy cập nội dung từ chương 2 trở đi (bao gồm bài tập).",
-      };
+    if (!isPaid) {
+      const { data: firstChapter } = await admin
+        .from("chapters")
+        .select("id")
+        .eq("base_course_id", baseCourseId)
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      // Chương 1 (index 0) học thử; từ chương 2 trở đi cần thanh toán (khóa trả phí).
+      if (firstChapter && firstChapter.id !== lesson.chapter_id) {
+        return {
+          ok: false,
+          status: 403,
+          message:
+            "Bạn cần thanh toán để truy cập nội dung từ chương 2 trở đi (bao gồm bài tập).",
+        };
+      }
     }
   }
 
@@ -159,7 +171,7 @@ export async function getLessonWithAccess(
     ok: true,
     lesson: lesson as LessonRecord,
     baseCourseId,
-    isStaff: false,
+    isStaff,
     enrollment,
   };
 }

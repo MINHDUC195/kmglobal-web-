@@ -52,10 +52,9 @@ export async function GET(
       return NextResponse.json({ error: access.message }, { status: access.status });
     }
 
-    const { lesson, isStaff, enrollment } = access;
+    const { lesson, enrollment } = access;
 
     if (
-      !isStaff &&
       enrollment &&
       enrollmentIdParam &&
       enrollment.id === enrollmentIdParam
