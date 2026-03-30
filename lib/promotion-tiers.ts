@@ -32,6 +32,72 @@ export function parsePromotionTiers(raw: unknown): PromotionTier[] | null {
   return out;
 }
 
+export type TierFormRow = { slots: string; discount: string };
+
+/** Đổ `promotion_tiers` hợp lệ từ DB → ô form (đợt có suất + đuôi). */
+export function promotionTiersToFormRows(raw: unknown): {
+  rows: TierFormRow[];
+  tailDiscount: string;
+} {
+  const tiers = parsePromotionTiers(raw);
+  if (!tiers?.length) {
+    return { rows: [{ slots: "", discount: "" }], tailDiscount: "" };
+  }
+  const capped = tiers.filter((t): t is PromotionTier & { slots: number } => t.slots != null);
+  const last = tiers[tiers.length - 1];
+  return {
+    rows:
+      capped.length > 0
+        ? capped.map((t) => ({ slots: String(t.slots), discount: String(t.discount_percent) }))
+        : [{ slots: "", discount: "" }],
+    tailDiscount: last?.slots == null ? String(last.discount_percent) : "",
+  };
+}
+
+/** Từ ô form → object lưu DB. Ném Error (tiếng Việt) nếu không hợp lệ. */
+export function buildPromotionTiersFromFormRows(
+  cappedRows: TierFormRow[],
+  tailDiscountStr: string
+): object {
+  const tailTrim = tailDiscountStr.trim();
+  const tailD = tailTrim === "" ? 0 : Math.round(parseFloat(tailDiscountStr));
+  if (tailTrim !== "" && (!Number.isFinite(tailD) || tailD < 0 || tailD > 99)) {
+    throw new Error("Đợt không giới hạn suất: % giảm giá phải là số nguyên 0–99 (để trống = 0%).");
+  }
+
+  const capped: { slots: number; discount_percent: number }[] = [];
+  for (const r of cappedRows) {
+    const sTrim = r.slots.trim();
+    const dTrim = r.discount.trim();
+    if (!sTrim && !dTrim) continue;
+    if (!sTrim || !dTrim) {
+      throw new Error("Mỗi đợt có giới hạn cần đủ số suất và % giảm giá (hoặc xóa trống cả hai).");
+    }
+    const slots = Math.round(parseFloat(sTrim));
+    const d = Math.round(parseFloat(dTrim));
+    if (!Number.isFinite(slots) || slots < 1 || !Number.isInteger(slots)) {
+      throw new Error("Số suất mỗi đợt phải là số nguyên ≥ 1.");
+    }
+    if (!Number.isFinite(d) || d < 0 || d > 99) {
+      throw new Error("% giảm giá mỗi đợt phải là số nguyên 0–99.");
+    }
+    capped.push({ slots, discount_percent: d });
+  }
+
+  if (capped.length < 1) {
+    throw new Error("Cần ít nhất một đợt có giới hạn suất (số suất + % giảm).");
+  }
+
+  const parsed: unknown = [
+    ...capped.map((c) => ({ slots: c.slots, discount_percent: c.discount_percent })),
+    { slots: null, discount_percent: tailD },
+  ];
+  if (!parsePromotionTiers(parsed)) {
+    throw new Error("Cấu hình đợt ưu đãi không hợp lệ.");
+  }
+  return parsed as object;
+}
+
 function cappedTotalSlots(tiers: PromotionTier[]): number {
   let s = 0;
   for (const t of tiers) {

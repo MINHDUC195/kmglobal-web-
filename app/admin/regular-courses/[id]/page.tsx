@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminBreadcrumbStrip } from "../../../../components/AdminHierarchyBreadcrumb";
+import RegularCourseSubmitApprovalButton from "../../../../components/RegularCourseSubmitApprovalButton";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { getCourseDisplayStatus } from "../../../../lib/course-status";
 
@@ -36,6 +37,8 @@ export default async function RegularCoursePage({ params }: RegularCoursePagePro
 
   const baseCourse = course.base_course as { id: string; name: string; code: string } | null;
   const program = course.program as { id: string; name: string } | null;
+  const approvalStatus =
+    (course as { approval_status?: string | null }).approval_status ?? "pending";
   const regularBreadcrumb = [
     { label: "Chương trình", href: "/admin/programs" },
     ...(program?.id
@@ -123,13 +126,14 @@ export default async function RegularCoursePage({ params }: RegularCoursePagePro
           </dl>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap items-start gap-3">
           <Link
             href={`/admin/regular-courses/${id}/edit`}
             className="inline-block rounded-full bg-[#D4AF37] px-6 py-2.5 text-sm font-bold text-black hover:bg-[#E7C768]"
           >
             Chỉnh sửa
           </Link>
+          <RegularCourseSubmitApprovalButton courseId={id} approvalStatus={approvalStatus} />
           <Link
             href="/admin/regular-courses"
             className="inline-flex items-center rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-gray-200 hover:border-[#D4AF37]/50"

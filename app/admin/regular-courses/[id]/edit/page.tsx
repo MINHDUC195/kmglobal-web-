@@ -5,7 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AdminBreadcrumbStrip } from "../../../../../components/AdminHierarchyBreadcrumb";
 import { getSupabaseBrowserClient } from "../../../../../lib/supabase-browser";
-import { parsePromotionTiers } from "../../../../../lib/promotion-tiers";
+import {
+  buildPromotionTiersFromFormRows,
+  parsePromotionTiers,
+  promotionTiersToFormRows,
+} from "../../../../../lib/promotion-tiers";
 
 function toLocalDateTime(iso: string | null): string {
   if (!iso) return "";
@@ -48,8 +52,12 @@ export default function EditRegularCoursePage() {
   const [baseCourseId, setBaseCourseId] = useState<string | null>(null);
   const [baseCourseName, setBaseCourseName] = useState("");
   const [discountPercentLocked, setDiscountPercentLocked] = useState(false);
-  const [promotionTiersJson, setPromotionTiersJson] = useState("");
-  /** Giống modal nhân bản: chỉ hiển thị một nhóm — % cố định hoặc JSON ưu đãi theo suất */
+  /** Đợt có giới hạn suất + đuôi (chế độ ưu đãi theo suất) */
+  const [tierCappedRows, setTierCappedRows] = useState<{ slots: string; discount: string }[]>([
+    { slots: "", discount: "" },
+  ]);
+  const [tierTailDiscount, setTierTailDiscount] = useState("");
+  /** Chỉ một nhóm: % cố định hoặc ưu đãi theo suất */
   const [pricingMode, setPricingMode] = useState<"flat" | "tiers">("flat");
 
   useEffect(() => {
@@ -85,7 +93,9 @@ export default function EditRegularCoursePage() {
       const locked = (data as { discount_percent_locked?: boolean }).discount_percent_locked === true;
       setDiscountPercentLocked(locked);
       const pt = (data as { promotion_tiers?: unknown }).promotion_tiers;
-      setPromotionTiersJson(pt != null ? JSON.stringify(pt, null, 2) : "");
+      const { rows, tailDiscount } = promotionTiersToFormRows(pt);
+      setTierCappedRows(rows);
+      setTierTailDiscount(tailDiscount);
       setPricingMode(parsePromotionTiers(pt) != null ? "tiers" : "flat");
     }
     void load().finally(() => setLoading(false));
@@ -121,22 +131,8 @@ export default function EditRegularCoursePage() {
         }
         patch.promotion_tiers = null;
       } else {
-        const tiersTrim = promotionTiersJson.trim();
-        if (!tiersTrim) {
-          throw new Error('Ưu đãi theo suất: nhập JSON hợp lệ hoặc chọn lại "Giảm giá cố định (%)".');
-        }
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(tiersTrim) as unknown;
-        } catch {
-          throw new Error("promotion_tiers: JSON không hợp lệ");
-        }
-        if (!parsePromotionTiers(parsed)) {
-          throw new Error(
-            "promotion_tiers: cần ≥2 phần tử, các đợt trước có slots nguyên ≥1, phần tử cuối có \"slots\": null và discount_percent nguyên 0–99."
-          );
-        }
-        patch.promotion_tiers = parsed as object;
+        const parsed = buildPromotionTiersFromFormRows(tierCappedRows, tierTailDiscount);
+        patch.promotion_tiers = parsed;
         if (!discountPercentLocked) {
           patch.discount_percent = null;
         }
@@ -231,7 +227,7 @@ export default function EditRegularCoursePage() {
               <option value="tiers">Ưu đãi theo suất</option>
             </select>
             <p className="mt-1 text-xs text-gray-500">
-              Chọn một: hoặc một mức % cố định, hoặc các đợt theo số suất (JSON; đợt cuối không giới hạn suất). Khi lưu, chỉ cách bạn chọn được giữ — cách kia sẽ được gỡ (JSON xóa hoặc % cố định không còn dùng khi có JSON).
+              Chọn một: hoặc một mức % cố định, hoặc các đợt theo số suất (đợt cuối không giới hạn suất). Khi lưu, chỉ cách bạn chọn được giữ — cách kia sẽ được gỡ.
             </p>
           </div>
 
@@ -261,25 +257,96 @@ export default function EditRegularCoursePage() {
             </div>
           ) : (
             <div className="rounded-xl border border-white/10 bg-[#0b1323]/50 p-4">
-              <label className="mb-2 block text-sm font-medium text-white/90">Ưu đãi theo suất (JSON)</label>
+              <label className="mb-2 block text-sm font-medium text-white/90">Ưu đãi theo suất</label>
               <p className="mb-3 text-xs text-gray-500">
-                Các đợt có giới hạn suất, rồi một phần tử cuối với <code className="text-gray-400">slots: null</code> (không giới hạn suất).{" "}
-                <code className="text-gray-400">discount_percent</code> mỗi đợt: số nguyên 0–99 (đợt cuối có thể 0% = giá gốc sau các đợt có suất).
+                Thêm từng đợt có giới hạn suất, rồi mức % cho đợt không giới hạn suất (sau các đợt trước). Mỗi đợt: % giảm 0–99. Đợt cuối để trống = 0% (giá gốc sau các đợt có suất).
               </p>
-              <textarea
-                value={promotionTiersJson}
-                onChange={(e) => setPromotionTiersJson(e.target.value)}
-                rows={8}
-                spellCheck={false}
-                placeholder={`[\n  { "slots": 50, "discount_percent": 50 },\n  { "slots": 20, "discount_percent": 30 },\n  { "slots": null, "discount_percent": 0 }\n]`}
-                className="w-full rounded-xl border border-white/15 bg-[#0b1323] px-4 py-3 font-mono text-sm text-white outline-none focus:border-[#D4AF37]"
-              />
-              <p className="mt-2 text-xs text-gray-500">
+              <div className="space-y-3">
+                {tierCappedRows.map((row, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-wrap items-end gap-2 rounded-lg border border-white/10 bg-[#0a1628] p-2"
+                  >
+                    <div className="min-w-[7rem] flex-1">
+                      <span className="mb-0.5 block text-[11px] text-gray-500">Đợt {idx + 1} · Số suất</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={row.slots}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setTierCappedRows((prev) =>
+                            prev.map((r, i) => (i === idx ? { ...r, slots: v } : r))
+                          );
+                        }}
+                        placeholder="VD: 50"
+                        className="w-full rounded-md border border-white/15 bg-[#0b1323] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div className="min-w-[7rem] flex-1">
+                      <span className="mb-0.5 block text-[11px] text-gray-500">Giảm giá (%)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={99}
+                        value={row.discount}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setTierCappedRows((prev) =>
+                            prev.map((r, i) => (i === idx ? { ...r, discount: v } : r))
+                          );
+                        }}
+                        placeholder="VD: 30"
+                        className="w-full rounded-md border border-white/15 bg-[#0b1323] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    {tierCappedRows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTierCappedRows((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        className="shrink-0 rounded-md border border-red-500/40 px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+                      >
+                        Xóa đợt
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTierCappedRows((prev) => [...prev, { slots: "", discount: "" }])
+                  }
+                  className="text-xs font-medium text-[#D4AF37] hover:underline"
+                >
+                  + Thêm đợt có giới hạn suất
+                </button>
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2">
+                  <span className="mb-0.5 block text-[11px] font-medium text-amber-200/90">
+                    Đợt cuối — không giới hạn suất
+                  </span>
+                  <div className="max-w-[10rem]">
+                    <span className="mb-0.5 block text-[11px] text-gray-500">Giảm giá (%)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={tierTailDiscount}
+                      onChange={(e) => setTierTailDiscount(e.target.value)}
+                      placeholder="Trống = 0%"
+                      className="w-full rounded-md border border-white/15 bg-[#0b1323] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]"
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
                 Khi lưu với chế độ này, giá bán chỉ theo các đợt. Nếu % cố định chưa bị khóa, hệ thống sẽ đặt lại thành không dùng (null).
                 {discountPercentLocked ? (
                   <>
                     {" "}
-                    Nếu % cố định đã khóa từ lúc tạo khóa, cột trong CSDL có thể còn giá trị cũ nhưng không ảnh hưởng giá khi JSON hợp lệ.
+                    Nếu % cố định đã khóa, cột trong CSDL có thể còn giá trị cũ nhưng không ảnh hưởng giá khi cấu hình đợt hợp lệ.
                   </>
                 ) : null}
               </p>
