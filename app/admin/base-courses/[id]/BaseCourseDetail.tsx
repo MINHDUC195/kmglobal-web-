@@ -175,7 +175,7 @@ export default function BaseCourseDetail({ course, chapters: initialChapters, is
           program_id: programId,
           name: cloneName.trim() || `${course.name} (Khóa mới)`,
           status: "draft",
-          approval_status: "pending",
+          approval_status: "draft",
           price_cents: 0,
           discount_percent: null,
           discount_percent_locked: false,

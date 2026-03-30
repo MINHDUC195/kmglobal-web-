@@ -127,12 +127,25 @@ export default async function RegularCoursePage({ params }: RegularCoursePagePro
         </div>
 
         <div className="mt-6 flex flex-wrap items-start gap-3">
-          <Link
-            href={`/admin/regular-courses/${id}/edit`}
-            className="inline-block rounded-full bg-[#D4AF37] px-6 py-2.5 text-sm font-bold text-black hover:bg-[#E7C768]"
-          >
-            Chỉnh sửa
-          </Link>
+          {approvalStatus === "draft" ? (
+            <Link
+              href={`/admin/regular-courses/${id}/edit`}
+              className="inline-flex min-h-[42px] items-center justify-center rounded-full bg-[#D4AF37] px-6 py-2.5 text-sm font-bold text-black hover:bg-[#E7C768]"
+            >
+              Chỉnh sửa
+            </Link>
+          ) : (
+            <span
+              className="inline-flex min-h-[42px] cursor-not-allowed items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 py-2.5 text-sm font-semibold text-gray-500"
+              title={
+                approvalStatus === "pending"
+                  ? "Đã gửi phê duyệt — không chỉnh sửa cho đến khi Owner duyệt hoặc từ chối"
+                  : "Khóa đã được phê duyệt hiển thị — không chỉnh sửa tại đây"
+              }
+            >
+              Chỉnh sửa
+            </span>
+          )}
           <RegularCourseSubmitApprovalButton courseId={id} approvalStatus={approvalStatus} />
           <Link
             href="/admin/regular-courses"

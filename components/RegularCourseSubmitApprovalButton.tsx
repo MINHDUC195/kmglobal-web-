@@ -8,13 +8,40 @@ type Props = {
   approvalStatus: string;
 };
 
-/** Chỉ hiện khi khóa ở trạng thái nháp (draft); gọi API chuyển sang chờ Owner phê duyệt. */
+/**
+ * draft: nút gửi lên Owner.
+ * pending / approved: chỉ báo trạng thái (không tương tác).
+ */
 export default function RegularCourseSubmitApprovalButton({ courseId, approvalStatus }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  if (approvalStatus !== "draft") return null;
+  if (approvalStatus === "pending") {
+    return (
+      <div
+        className="inline-flex min-h-[42px] items-center justify-center rounded-full border border-amber-500/45 bg-amber-500/10 px-6 py-2.5 text-sm font-medium text-amber-100"
+        role="status"
+      >
+        Đã gửi phê duyệt — chờ Owner xử lý
+      </div>
+    );
+  }
+
+  if (approvalStatus === "approved") {
+    return (
+      <div
+        className="inline-flex min-h-[42px] items-center justify-center rounded-full border border-emerald-500/45 bg-emerald-500/10 px-6 py-2.5 text-sm font-medium text-emerald-100"
+        role="status"
+      >
+        Đã phê duyệt hiển thị
+      </div>
+    );
+  }
+
+  if (approvalStatus !== "draft") {
+    return null;
+  }
 
   async function submit() {
     if (loading) return;
@@ -43,11 +70,11 @@ export default function RegularCourseSubmitApprovalButton({ courseId, approvalSt
         type="button"
         disabled={loading}
         onClick={() => void submit()}
-        className="inline-flex items-center justify-center rounded-full border border-amber-500/50 bg-amber-500/15 px-6 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 disabled:opacity-60"
+        className="inline-flex min-h-[42px] items-center justify-center rounded-full border border-amber-500/50 bg-amber-500/15 px-6 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 disabled:opacity-60"
       >
         {loading ? "Đang gửi..." : "Gửi phê duyệt hiển thị"}
       </button>
-      {error ? <p className="text-xs text-red-300">{error}</p> : null}
+      {error ? <p className="max-w-xs text-xs text-red-300">{error}</p> : null}
     </div>
   );
 }

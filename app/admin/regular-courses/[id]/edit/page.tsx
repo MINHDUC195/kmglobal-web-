@@ -59,6 +59,8 @@ export default function EditRegularCoursePage() {
   const [tierTailDiscount, setTierTailDiscount] = useState("");
   /** Chỉ một nhóm: % cố định hoặc ưu đãi theo suất */
   const [pricingMode, setPricingMode] = useState<"flat" | "tiers">("flat");
+  /** null = chưa tải xong; chỉ cho sửa khi draft */
+  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -97,6 +99,9 @@ export default function EditRegularCoursePage() {
       setTierCappedRows(rows);
       setTierTailDiscount(tailDiscount);
       setPricingMode(parsePromotionTiers(pt) != null ? "tiers" : "flat");
+      setApprovalStatus(
+        (data as { approval_status?: string | null }).approval_status ?? "pending"
+      );
     }
     void load().finally(() => setLoading(false));
   }, [id, supabase]);
@@ -106,6 +111,9 @@ export default function EditRegularCoursePage() {
     setError("");
     setSubmitting(true);
     try {
+      if (approvalStatus !== "draft") {
+        throw new Error("Không thể lưu: chỉ khóa ở trạng thái nháp mới được chỉnh sửa.");
+      }
       const priceVal = priceCents.trim() ? Math.round(parseFloat(priceCents)) : 0;
       if (priceVal < 0) throw new Error("Giá không hợp lệ");
       const discountVal = discountPercent.trim()
@@ -166,6 +174,54 @@ export default function EditRegularCoursePage() {
             ← Về chương trình
           </Link>
         </main>
+    );
+  }
+
+  if (!loading && approvalStatus !== null && approvalStatus !== "draft") {
+    const editRegularBreadcrumbLocked = [
+      { label: "Chương trình", href: "/admin/programs" },
+      ...(programId
+        ? [{ label: programName || "Chương trình", href: `/admin/programs/${programId}` }]
+        : []),
+      ...(baseCourseId
+        ? [{ label: baseCourseName || "Khóa học cơ bản", href: `/admin/base-courses/${baseCourseId}` }]
+        : []),
+      { label: name || "Khóa học thường", href: `/admin/regular-courses/${id}` },
+      { label: "Chỉnh sửa khóa học thường" },
+    ];
+    return (
+      <>
+        <AdminBreadcrumbStrip items={editRegularBreadcrumbLocked} />
+        <main className="mx-auto max-w-[var(--container-max)] px-4 py-12 sm:px-6">
+          <h1 className="font-[family-name:var(--font-serif)] text-2xl font-bold text-[#D4AF37]">
+            Chỉnh sửa khóa học thường
+          </h1>
+          <div
+            className={`mt-6 max-w-xl rounded-xl border px-4 py-4 text-sm ${
+              approvalStatus === "pending"
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
+                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+            }`}
+          >
+            {approvalStatus === "pending" ? (
+              <p>
+                Khóa đã <strong>gửi phê duyệt hiển thị</strong> — không thể chỉnh sửa cho đến khi Owner xử lý.
+                Nếu Owner <strong>từ chối</strong>, khóa trở về trạng thái nháp và bạn có thể sửa rồi gửi lại.
+              </p>
+            ) : (
+              <p>
+                Khóa đã được <strong>phê duyệt hiển thị</strong> — không mở form chỉnh sửa tại đây.
+              </p>
+            )}
+          </div>
+          <Link
+            href={`/admin/regular-courses/${id}`}
+            className="mt-6 inline-block text-sm font-semibold text-[#D4AF37] hover:underline"
+          >
+            ← Về chi tiết khóa học
+          </Link>
+        </main>
+      </>
     );
   }
 
